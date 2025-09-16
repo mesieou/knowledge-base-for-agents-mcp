@@ -134,11 +134,10 @@ console.error("PORT:", process.env.PORT);
 console.error("NODE_ENV:", process.env.NODE_ENV);
 console.error("All Railway vars:", Object.keys(process.env).filter(k => k.includes('RAILWAY')));
 
-// Railway domain is configured for port 8050, but ENV PORT is 8080
-// We need to use the port Railway's proxy expects (8050)
-const port = 8050;
-console.error(`Railway proxy expects port 8050, ENV PORT is: ${process.env.PORT}`);
-console.error(`Using port: ${port}`);
+// Use Railway's PORT environment variable for health checks to work
+const port = parseInt(process.env.PORT || "8050");
+console.error(`Using Railway's PORT env var: ${port}`);
+console.error(`Railway ENV PORT: ${process.env.PORT}`);
 
 app.listen(port, "0.0.0.0", () => {
   console.error(`✅ MCP server successfully running on http://0.0.0.0:${port}`);
