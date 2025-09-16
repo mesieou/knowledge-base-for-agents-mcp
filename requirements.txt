@@ -3,5 +3,5 @@ openai==1.75.0
 python-dotenv
 ipykernel
 httpx
-fastapi
+starlette
 uvicorn
