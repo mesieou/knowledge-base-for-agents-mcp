@@ -1,0 +1,48 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Logs
+*.log
+
+# Environment files (will be passed as env vars)
+.env
+.env.local
+.env.production
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Test files
+tests/
+*_test.py
+test_*.py
