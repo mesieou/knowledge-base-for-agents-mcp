@@ -23,9 +23,9 @@ USER app
 # Expose common Railway ports
 EXPOSE 8080
 
-# Health check (using Python instead of curl)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8050/health')" || exit 1
+# Remove health check for now to debug Railway connection issues
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+#     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/mcp')" || exit 1
 
 # Run the MCP server
 CMD ["python", "mcp/server.py"]
