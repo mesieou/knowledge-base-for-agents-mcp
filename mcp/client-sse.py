@@ -23,7 +23,7 @@ uv run server.py
 
 async def main():
     # Connect to the server using SSE
-    async with sse_client("https://knowledge-base-for-agents-mcp-production.up.railway.app/sse") as (read_stream, write_stream):
+    async with sse_client("https://knowledge-base-for-agents-mcp-production.up.railway.app/mcp") as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
             # Initialize the connection
             await session.initialize()
