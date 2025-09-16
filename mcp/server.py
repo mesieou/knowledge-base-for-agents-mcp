@@ -28,5 +28,5 @@ def add(a: int, b: int) -> int:
 
 # Run the server
 if __name__ == "__main__":
-    transport = "streamable-http"
+    transport = "sse"
     mcp.run(transport=transport)

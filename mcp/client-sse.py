@@ -1,7 +1,12 @@
 import asyncio
 import nest_asyncio
+import logging
 from mcp import ClientSession
 from mcp.client.sse import sse_client
+
+# Set up logging to see what's happening
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 nest_asyncio.apply()  # Needed to run interactive python
 
@@ -18,7 +23,7 @@ uv run server.py
 
 async def main():
     # Connect to the server using SSE
-    async with sse_client("http://localhost:8050/sse") as (read_stream, write_stream):
+    async with sse_client("https://knowledge-base-for-agents-mcp-production.up.railway.app/sse") as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
             # Initialize the connection
             await session.initialize()
