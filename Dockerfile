@@ -20,8 +20,8 @@ COPY . .
 RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
 USER app
 
-# Expose the port your MCP server runs on
-EXPOSE 8050
+# Expose common Railway ports
+EXPOSE 8080
 
 # Health check (using Python instead of curl)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
