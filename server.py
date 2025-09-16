@@ -20,6 +20,7 @@ def fetch_weather(city: str) -> str:
 
 # Run server with streamable_http transport
 if __name__ == "__main__":
-    # Railway expects port 8050, set via environment variable
-    os.environ.setdefault("PORT", "8050")
+    # Force port 8050 for Railway (Railway domain expects this port)
+    os.environ["PORT"] = "8050"
+    print(f"Setting PORT to: {os.environ['PORT']}")
     mcp.run(transport="streamable-http")
