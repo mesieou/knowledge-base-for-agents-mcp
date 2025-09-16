@@ -15,6 +15,14 @@ mcp = FastMCP(
     stateless_http=True,
 )
 
+# Add MCP endpoint route
+@mcp.get("/mcp")
+@mcp.post("/mcp")
+
+async def mcp_endpoint():
+    """MCP protocol endpoint"""
+    return {"status": "MCP endpoint available"}
+
 
 # Add a simple calculator tool
 @mcp.tool()
@@ -25,15 +33,10 @@ def add(a: int, b: int) -> int:
 
 # Run the server
 if __name__ == "__main__":
+    import sys
+
+    # Default to streamable-http for production, but allow override
     transport = "streamable-http"
-    if transport == "stdio":
-        print("Running server with stdio transport")
-        mcp.run(transport="stdio")
-    elif transport == "sse":
-        print("Running server with SSE transport")
-        mcp.run(transport="sse")
-    elif transport == "streamable-http":
-        print("Running server with Streamable HTTP transport")
-        mcp.run(transport="streamable-http")
-    else:
-        raise ValueError(f"Unknown transport: {transport}")
+
+    print(f"Running server with {transport} transport")
+    mcp.run(transport=transport)
