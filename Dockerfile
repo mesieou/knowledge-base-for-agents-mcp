@@ -9,10 +9,12 @@ RUN pip install uv
 COPY requirements.txt .
 
 # Install dependencies with uv
-RUN uv pip install --system -r requirements.txt
+RUN uv venv
+RUN uv pip install -r requirements.txt
 
 COPY server.py .
+COPY client.py .
 
 EXPOSE 8050
 
-CMD ["python", "server.py"]
+CMD ["uv", "run", "server.py"]
