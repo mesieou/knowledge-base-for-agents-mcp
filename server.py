@@ -3,15 +3,6 @@ import os
 # Stateful server (maintains session state)
 
 mcp = FastMCP("KnowledgeBaseMCP")
-
-# Other configuration options:
-# Stateless server (no session persistence)
-# mcp = FastMCP("StatelessServer", stateless_http=True)
-
-# Stateless server (no session persistence, no sse stream with supported client)
-# mcp = FastMCP("StatelessServer", stateless_http=True, json_response=True)
-
-
 # Add a simple tool to demonstrate the server
 @mcp.tool()
 def greet(name: str = "World") -> str:
