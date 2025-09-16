@@ -6,6 +6,8 @@ load_dotenv("../.env")
 
 # Get port from Railway's environment variable (with fallback for local dev)
 port = int(os.getenv("PORT", "8050"))
+print(f"DEBUG: PORT env var = {os.getenv('PORT')}")
+print(f"DEBUG: Using port = {port}")
 
 # Create an MCP server
 mcp = FastMCP(
