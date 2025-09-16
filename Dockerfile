@@ -5,5 +5,5 @@ RUN npm ci
 COPY . .
 RUN npm run build
 USER node
-EXPOSE 8080
+EXPOSE 8050
 CMD ["node", "dist/server.js"]
