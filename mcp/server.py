@@ -25,6 +25,9 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Mount the MCP endpoints
+app.mount("/", mcp.streamable_http_app())
+
 # Add a simple calculator tool
 @mcp.tool()
 def add(a: int, b: int) -> int:
