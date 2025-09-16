@@ -13,9 +13,7 @@ RUN uv venv
 RUN uv pip install -r requirements.txt
 
 COPY server.py .
-COPY start.sh .
-RUN chmod +x start.sh
 
 EXPOSE 8000
 
-CMD ["./start.sh"]
+CMD ["uv", "run", "server.py"]
