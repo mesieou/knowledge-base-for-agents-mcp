@@ -9,7 +9,7 @@ case "$1" in
         ;;
     "run")
         echo "Running MCP server container..."
-        docker run -d -p 8050:8050 --name mcp-server knowledge-base-mcp
+        docker run -d -p 8080:8080 --name mcp-server knowledge-base-mcp
         ;;
     "stop")
         echo "Stopping MCP server container..."

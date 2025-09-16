@@ -5,17 +5,17 @@ services:
     build: .
     container_name: knowledge-base-mcp
     ports:
-      - "8050:8050"
+      - "8080:8080"
     environment:
       # Add any environment variables your MCP server needs
-      - PYTHONUNBUFFERED=1
-      - PORT=8050  # For local development
+      - NODE_ENV=production
+      - PORT=8080  # For local development
     volumes:
       # Mount a volume for persistent data if needed
       - ./data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8050/health')"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/mcp', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
       interval: 30s
       timeout: 10s
       retries: 3
