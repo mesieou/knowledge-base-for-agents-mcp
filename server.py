@@ -1,12 +1,16 @@
 """
-Simple FastMCP server example
+Production-ready MCP server following Docker best practices
 """
 
-from mcp.server.fastmcp import FastMCP
 import os
+from mcp.server.fastmcp import FastMCP
 
-# Create MCP server
-mcp = FastMCP("KnowledgeBaseMCP")
+# Create MCP server with proper Docker host binding
+mcp = FastMCP(
+    name="KnowledgeBaseMCP",
+    host="0.0.0.0",  # Bind to all interfaces for Docker
+    port=8000,       # Port for the server
+)
 
 @mcp.tool()
 def greet(name: str = "World") -> str:
@@ -18,10 +22,7 @@ def fetch_weather(city: str) -> str:
     """Get weather data for a city (mock implementation)."""
     return f"Weather in {city}: Sunny, 25°C"
 
-# Run server with streamable_http transport
 if __name__ == "__main__":
-    # Set environment variables for Railway
-    os.environ["HOST"] = "0.0.0.0"
-    port = int(os.environ.get("PORT", 8000))
-    print(f"Starting MCP server on {os.environ['HOST']}:{port}")
+    # Now FastMCP should bind to 0.0.0.0:8000 properly!
+    print("🚀 Starting FastMCP with host=0.0.0.0:8000")
     mcp.run(transport="streamable-http")

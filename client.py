@@ -6,7 +6,7 @@ from mcp.client.streamable_http import streamablehttp_client
 
 async def main():
     # Connect to a streamable HTTP server
-    async with streamablehttp_client("https://knowledge-base-for-agents-mcp-production.up.railway.app/mcp") as (
+    async with streamablehttp_client("http://localhost:8000/mcp") as (
         read_stream,
         write_stream,
         _,
