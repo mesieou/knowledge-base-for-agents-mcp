@@ -1,27 +1,28 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# Use Node.js 20 slim image
+FROM node:20-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install uv
-RUN pip install uv
+# Copy package files first (for better Docker layer caching)
+COPY package*.json ./
+COPY tsconfig.json ./
 
-# Copy requirements first (for better Docker layer caching)
-COPY requirements.txt .
+# Install all dependencies (including dev dependencies for building)
+RUN npm ci
 
-# Install Python dependencies
-RUN uv pip install --system -r requirements.txt
+# Copy source code
+COPY src/ ./src/
 
-# Copy the rest of the application
-COPY . .
+# Build TypeScript
+RUN npm run build
 
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
 USER app
 
-# Expose common Railway ports
+# Expose Railway port
 EXPOSE 8080
 
-# Run the standard MCP server
-CMD ["python", "server.py"]
+# Run the TypeScript MCP server
+CMD ["node", "dist/server.js"]
