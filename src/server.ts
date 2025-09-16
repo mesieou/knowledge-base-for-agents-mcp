@@ -8,9 +8,29 @@ import { z } from "zod";
 const app = express();
 app.use(express.json());
 
+// Simple root endpoint for Railway proxy testing
+app.get("/", (req, res) => {
+  res.status(200).send("MCP Server is running! 🚀");
+});
+
 // Health check endpoint for Railway
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
+});
+
+// Debug endpoint to see all headers and request info
+app.get("/debug", (req, res) => {
+  res.status(200).json({
+    message: "Debug info",
+    headers: req.headers,
+    url: req.url,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+    env: {
+      PORT: process.env.PORT,
+      NODE_ENV: process.env.NODE_ENV
+    }
+  });
 });
 
 // Map to store transports by session ID
@@ -45,14 +65,13 @@ app.post("/mcp", async (req, res) => {
         delete transports[transport.sessionId];
       }
     };
-
-    // Create and configure the MCP server
     const server = new McpServer({
       name: "railway-mcp",
       version: "1.0.0",
     });
 
-    // Register tools
+    // ... set up server resources, tools, and prompts ...
+    // Simple tool with parameters
     server.registerTool(
       "fetch-weather",
       {
@@ -61,28 +80,16 @@ app.post("/mcp", async (req, res) => {
         inputSchema: { city: z.string() }
       },
       async ({ city }) => {
-        try {
-          const response = await fetch(`https://api.weather.com/${city}`);
-          const data = await response.text();
-          return {
-            content: [{ type: "text", text: data }]
-          };
-        } catch (error) {
-          return {
-            content: [{ type: "text", text: `Weather API error: ${error.message}` }]
-          };
-        }
+        const response = await fetch(`https://api.weather.com/${city}`);
+        const data = await response.text();
+        return {
+          content: [{ type: "text", text: data }]
+        };
       }
     );
 
-    // Connect to the MCP server with error handling
-    try {
-      await server.connect(transport);
-      console.error(`✅ MCP server connected for session`);
-    } catch (error) {
-      console.error(`❌ MCP server connection failed:`, error);
-      throw error;
-    }
+    // Connect to the MCP server
+    await server.connect(transport);
   } else {
     // Invalid request
     res.status(400).json({
