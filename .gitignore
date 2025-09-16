@@ -28,28 +28,10 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Git
-.git/
-.gitignore
-
-# Documentation
-README.md
-*.md
-
-# Logs
-*.log
-
-# Environment files (will be passed as env vars)
+# Environment files
 .env
 .env.local
 .env.production
 
-# Docker files
-Dockerfile
-.dockerignore
-docker-compose.yml
-
-# Test files
-tests/
-*_test.py
-test_*.py
+# Logs
+*.log
