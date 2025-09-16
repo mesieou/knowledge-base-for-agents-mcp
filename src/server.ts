@@ -8,6 +8,11 @@ import { z } from "zod";
 const app = express();
 app.use(express.json());
 
+// Health check endpoint for Railway
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
+});
+
 // Map to store transports by session ID
 const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
@@ -103,5 +108,7 @@ app.get("/mcp", handleSessionRequest);
 // Handle DELETE requests for session termination
 app.delete("/mcp", handleSessionRequest);
 
-const port = 8080;
-app.listen(port, () => console.log(`Server running on port ${port}`));
+const port = parseInt(process.env.PORT || "8080");
+app.listen(port, "0.0.0.0", () => {
+  console.error(`MCP server running on http://0.0.0.0:${port}`);
+});

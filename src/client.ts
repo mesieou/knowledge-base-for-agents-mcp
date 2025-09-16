@@ -3,7 +3,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 let client: Client|undefined = undefined
-const baseUrl = new URL("https://knowledge-base-for-agents-mcp-production.up.railway.app/mcp");
+const baseUrl = new URL("http://localhost:8080/mcp");
 
 try {
   client = new Client({
@@ -25,4 +25,33 @@ try {
   const sseTransport = new SSEClientTransport(baseUrl);
   await client.connect(sseTransport);
   console.log("Connected using SSE transport");
+}
+
+// Test the MCP server functionality
+if (client) {
+  try {
+    // List available tools
+    const tools = await client.listTools();
+    console.log("Available tools:", JSON.stringify(tools, null, 2));
+
+    // Test the fetch-weather tool if it exists
+    if (tools.tools && tools.tools.length > 0) {
+      const weatherTool = tools.tools.find(tool => tool.name === "fetch-weather");
+      if (weatherTool) {
+        console.log("Testing fetch-weather tool...");
+        const weatherResult = await client.callTool({
+          name: "fetch-weather",
+          arguments: { city: "New York" }
+        });
+        console.log("Weather tool result:", JSON.stringify(weatherResult, null, 2));
+      }
+    }
+
+    // Close the connection gracefully
+    await client.close();
+    console.log("Connection closed successfully");
+
+  } catch (error) {
+    console.error("Error testing MCP functionality:", error);
+  }
 }
