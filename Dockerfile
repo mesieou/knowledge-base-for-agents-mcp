@@ -1,10 +1,10 @@
-# Use Python 3.11 slim image as base (more common, faster to download)
+# Use Python 3.11 slim image
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install uv using pip (simpler than copying from another image)
+# Install uv
 RUN pip install uv
 
 # Copy requirements first (for better Docker layer caching)
@@ -23,9 +23,5 @@ USER app
 # Expose common Railway ports
 EXPOSE 8080
 
-# Remove health check for now to debug Railway connection issues
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/mcp')" || exit 1
-
-# Run the MCP server
-CMD ["python", "mcp/server.py"]
+# Run the standard MCP server
+CMD ["python", "server.py"]
