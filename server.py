@@ -1,4 +1,6 @@
-from mcp.server.fastmcp import FastMCP# Stateful server (maintains session state)
+from mcp.server.fastmcp import FastMCP
+import os
+# Stateful server (maintains session state)
 
 mcp = FastMCP("KnowledgeBaseMCP")
 
@@ -25,4 +27,6 @@ def fetch_weather(city: str) -> str:
 
 # Run server with streamable_http transport
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    # Use PORT from environment or default to 8050 for Railway
+    port = int(os.getenv("PORT", 8050))
+    mcp.run(transport="streamable-http", port=port)

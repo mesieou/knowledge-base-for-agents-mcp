@@ -5,15 +5,14 @@ WORKDIR /app
 # Install uv
 RUN pip install uv
 
-# Copy project files
-COPY pyproject.toml .
-COPY uv.lock .
+# Copy requirements file
+COPY requirements.txt .
 
 # Install dependencies with uv
-RUN uv sync --frozen
+RUN uv pip install --system -r requirements.txt
 
 COPY server.py .
 
 EXPOSE 8050
 
-CMD ["uv", "run", "server.py"]
+CMD ["python", "server.py"]
