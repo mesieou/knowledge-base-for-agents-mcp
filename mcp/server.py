@@ -1,32 +1,24 @@
 import os
-import contextlib
-from contextlib import asynccontextmanager
+import logging
 from mcp.server.fastmcp import FastMCP
-from fastapi import FastAPI
 from dotenv import load_dotenv
-import uvicorn
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
 
 load_dotenv("../.env")
 
 # Get port from Railway's environment variable (with fallback for local dev)
 port = int(os.getenv("PORT", "8080"))
 
-# Create MCP server with stateless HTTP (as per GitHub issue solution)
+
+# Create an MCP server
 mcp = FastMCP(
-    "Calculator",
-    stateless_http=True,
+    name="Calculator",
+    host="0.0.0.0",
+    port=port,
+    stateless_http=True,  # Enable session management for MCP protocol
 )
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    async with contextlib.AsyncExitStack() as stack:
-        await stack.enter_async_context(mcp.session_manager.run())
-        yield
-
-app = FastAPI(lifespan=lifespan)
-
-# Mount the MCP endpoints
-app.mount("/", mcp.streamable_http_app())
 
 # Add a simple calculator tool
 @mcp.tool()
@@ -34,6 +26,7 @@ def add(a: int, b: int) -> int:
     """Add two numbers together"""
     return a + b
 
-# Run the server using uvicorn (as per GitHub issue solution)
+# Run the server
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    transport = "streamable-http"
+    mcp.run(transport=transport)
