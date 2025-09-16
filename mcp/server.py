@@ -1,13 +1,17 @@
+import os
 from mcp.server.fastmcp import FastMCP
 from dotenv import load_dotenv
 
 load_dotenv("../.env")
 
+# Get port from Railway's environment variable (with fallback for local dev)
+port = int(os.getenv("PORT", "8050"))
+
 # Create an MCP server
 mcp = FastMCP(
     name="Calculator",
     host="0.0.0.0",  # only used for SSE transport (localhost)
-    port=8050,  # only used for SSE transport (set this to any port)
+    port=port,  # Uses Railway's PORT or defaults to 8050
     stateless_http=True,
 )
 

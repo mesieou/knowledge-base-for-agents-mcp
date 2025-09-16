@@ -9,6 +9,7 @@ services:
     environment:
       # Add any environment variables your MCP server needs
       - PYTHONUNBUFFERED=1
+      - PORT=8050  # For local development
     volumes:
       # Mount a volume for persistent data if needed
       - ./data:/app/data
