@@ -45,13 +45,14 @@ app.post("/mcp", async (req, res) => {
         delete transports[transport.sessionId];
       }
     };
+
+    // Create and configure the MCP server
     const server = new McpServer({
       name: "railway-mcp",
       version: "1.0.0",
     });
 
-    // ... set up server resources, tools, and prompts ...
-    // Simple tool with parameters
+    // Register tools
     server.registerTool(
       "fetch-weather",
       {
@@ -60,16 +61,28 @@ app.post("/mcp", async (req, res) => {
         inputSchema: { city: z.string() }
       },
       async ({ city }) => {
-        const response = await fetch(`https://api.weather.com/${city}`);
-        const data = await response.text();
-        return {
-          content: [{ type: "text", text: data }]
-        };
+        try {
+          const response = await fetch(`https://api.weather.com/${city}`);
+          const data = await response.text();
+          return {
+            content: [{ type: "text", text: data }]
+          };
+        } catch (error) {
+          return {
+            content: [{ type: "text", text: `Weather API error: ${error.message}` }]
+          };
+        }
       }
     );
 
-    // Connect to the MCP server
-    await server.connect(transport);
+    // Connect to the MCP server with error handling
+    try {
+      await server.connect(transport);
+      console.error(`✅ MCP server connected for session`);
+    } catch (error) {
+      console.error(`❌ MCP server connection failed:`, error);
+      throw error;
+    }
   } else {
     // Invalid request
     res.status(400).json({
