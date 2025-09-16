@@ -17,10 +17,6 @@ mcp = FastMCP(
     stateless_http=True,
 )
 
-# FastMCP handles MCP protocol endpoints internally
-# No need to manually define /mcp endpoints
-
-
 # Add a simple calculator tool
 @mcp.tool()
 def add(a: int, b: int) -> int:

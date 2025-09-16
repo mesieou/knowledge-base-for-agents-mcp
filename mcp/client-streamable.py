@@ -18,7 +18,7 @@ uv run server.py
 
 async def main():
     # Connect to the server using Streamable HTTP
-    async with streamablehttp_client("http://localhost:8050/mcp") as (
+    async with streamablehttp_client("https://knowledge-base-for-agents-mcp-production.up.railway.app/mcp") as (
         read_stream,
         write_stream,
         get_session_id,
