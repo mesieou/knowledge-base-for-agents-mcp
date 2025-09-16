@@ -20,6 +20,8 @@ def fetch_weather(city: str) -> str:
 
 # Run server with streamable_http transport
 if __name__ == "__main__":
-    # Set host to 0.0.0.0 for Railway (all interfaces)
+    # Set environment variables for Railway
     os.environ["HOST"] = "0.0.0.0"
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Starting MCP server on {os.environ['HOST']}:{port}")
     mcp.run(transport="streamable-http")
