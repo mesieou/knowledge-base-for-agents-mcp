@@ -1,9 +1,19 @@
-FROM node:20-slim
+FROM python:3.13-slim
+
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-USER node
+
+# Install uv
+RUN pip install uv
+
+# Copy project files
+COPY pyproject.toml .
+COPY uv.lock .
+
+# Install dependencies with uv
+RUN uv sync --frozen
+
+COPY server.py .
+
 EXPOSE 8050
-CMD ["node", "dist/server.js"]
+
+CMD ["uv", "run", "server.py"]

@@ -7,15 +7,14 @@ services:
     ports:
       - "8050:8050"
     environment:
-      # Add any environment variables your MCP server needs
-      - NODE_ENV=production
+
       - PORT=8050  # Match Railway configuration
     volumes:
       # Mount a volume for persistent data if needed
       - ./data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8050/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8050/mcp')"]
       interval: 30s
       timeout: 10s
       retries: 3
