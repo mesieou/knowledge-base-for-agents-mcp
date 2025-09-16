@@ -5,9 +5,9 @@ services:
     build: .
     container_name: knowledge-base-mcp
     ports:
-      - "8050:8050"
+      - "8000:8000"
     environment:
-      - PORT=8050  # FastMCP actual default port
+      - PORT=8000  # FastMCP actual default port
     volumes:
       # Mount a volume for persistent data if needed
       - ./data:/app/data
