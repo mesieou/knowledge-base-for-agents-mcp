@@ -17,13 +17,8 @@ mcp = FastMCP(
     stateless_http=True,
 )
 
-# Add MCP endpoint route
-@mcp.get("/mcp")
-@mcp.post("/mcp")
-
-async def mcp_endpoint():
-    """MCP protocol endpoint"""
-    return {"status": "MCP endpoint available"}
+# FastMCP handles MCP protocol endpoints internally
+# No need to manually define /mcp endpoints
 
 
 # Add a simple calculator tool
