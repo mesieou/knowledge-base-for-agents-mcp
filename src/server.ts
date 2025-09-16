@@ -108,7 +108,17 @@ app.get("/mcp", handleSessionRequest);
 // Handle DELETE requests for session termination
 app.delete("/mcp", handleSessionRequest);
 
-const port = parseInt(process.env.PORT || "3000");
+// Debug Railway environment
+console.error("Environment variables:");
+console.error("PORT:", process.env.PORT);
+console.error("NODE_ENV:", process.env.NODE_ENV);
+console.error("All Railway vars:", Object.keys(process.env).filter(k => k.includes('RAILWAY')));
+
+const port = parseInt(process.env.PORT || "8080");
+console.error(`Attempting to bind to port: ${port}`);
+
 app.listen(port, "0.0.0.0", () => {
-  console.error(`MCP server running on http://0.0.0.0:${port}`);
+  console.error(`✅ MCP server successfully running on http://0.0.0.0:${port}`);
+}).on('error', (err) => {
+  console.error(`❌ Server failed to start:`, err);
 });

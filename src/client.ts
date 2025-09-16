@@ -3,7 +3,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 let client: Client|undefined = undefined
-const baseUrl = new URL("http://knowledge-base-for-agents-mcp-production.up.railway.app/mcp");
+const baseUrl = new URL("https://knowledge-base-for-agents-mcp-production.up.railway.app/mcp");
 
 try {
   client = new Client({
