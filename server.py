@@ -20,4 +20,5 @@ def fetch_weather(city: str) -> str:
 if __name__ == "__main__":
     # Use PORT from environment or default to 8050 for Railway
     port = int(os.getenv("PORT", 8050))
-    mcp.run(transport="streamable-http", port=port)
+    print(f"Starting MCP server on port {port}")
+    mcp.run(transport="streamable-http", port=port, host="0.0.0.0")
