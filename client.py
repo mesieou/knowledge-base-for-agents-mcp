@@ -47,7 +47,7 @@ async def timed_tool_call(session: ClientSession, tool_name: str, arguments: Dic
 
 async def main():
     # Connect to a streamable HTTP server
-    async with streamablehttp_client("https://knowledge-base-for-agents-mcp-production.up.railway.app/mcp") as (
+    async with streamablehttp_client("http://45.151.154.42:8000/mcp") as (
         read_stream,
         write_stream,
         _,
