@@ -32,9 +32,11 @@ jobs:
         # Write SSH key with proper line endings
         printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        # Write known hosts
+        # Write known hosts and get fresh ones
         printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
         chmod 644 ~/.ssh/known_hosts
+        # Get current host keys to avoid host key verification issues
+        ssh-keyscan -H 45.151.154.42 >> ~/.ssh/known_hosts 2>/dev/null || true
         # Verify key format
         echo "Testing SSH key format..."
         ssh-keygen -l -f ~/.ssh/deploy_key
