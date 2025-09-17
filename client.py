@@ -12,10 +12,21 @@ async def timed_tool_call(session: ClientSession, tool_name: str, arguments: Dic
 
     try:
         print(f"⏳ Calling {tool_name} (timeout: 5 minutes)...")
-        result = await asyncio.wait_for(
-            session.call_tool(tool_name, arguments or {}),
-            timeout=300  # 5 minute timeout
-        )
+        print("📋 Check Railway logs for detailed progress...")
+
+        # Add periodic progress updates
+        async def call_with_updates():
+            task = asyncio.create_task(session.call_tool(tool_name, arguments or {}))
+            start = time.perf_counter()
+
+            while not task.done():
+                await asyncio.sleep(10)  # Check every 10 seconds
+                elapsed = time.perf_counter() - start
+                print(f"⏳ Still processing... {elapsed:.0f}s elapsed")
+
+            return await task
+
+        result = await asyncio.wait_for(call_with_updates(), timeout=300)
         end_time = time.perf_counter()
         duration = end_time - start_time
         print(f"✅ {tool_name} completed in {duration:.1f}s")
