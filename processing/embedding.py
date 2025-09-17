@@ -35,6 +35,7 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
             create_sql = f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                business_id TEXT NOT NULL,
                 text TEXT NOT NULL,
                 vector vector(1536),
                 metadata JSONB,
@@ -46,6 +47,9 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
 
             CREATE INDEX IF NOT EXISTS {table_name}_metadata_idx
             ON {table_name} USING GIN (metadata);
+
+            CREATE INDEX IF NOT EXISTS {table_name}_business_idx
+            ON {table_name} (business_id);
             """
 
             cursor.execute(create_sql)
@@ -57,10 +61,16 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
 
 def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, openai_api_key: str) -> int:
     """Generate embeddings and store chunks in PostgreSQL"""
+    import os
+
     openai_client = OpenAI(api_key=openai_api_key)
+    business_id = os.getenv("BUSINESS_ID", "default_business")
 
     chunk_data = []
-    for chunk in chunks:
+    total_chunks = len(chunks)
+    print(f"📊 Processing {total_chunks} chunks for embeddings...")
+
+    for i, chunk in enumerate(chunks, 1):
         try:
             # Generate embedding (using small model for pgvector 2000 dimension limit)
             embedding_response = openai_client.embeddings.create(
@@ -86,10 +96,15 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
                 "title": chunk.meta.headings[0] if chunk.meta and chunk.meta.headings else None,
             }
 
-            chunk_data.append((chunk.text, embedding, json.dumps(metadata)))
+            chunk_data.append((business_id, chunk.text, embedding, json.dumps(metadata)))
+
+            # Progress tracking
+            if i % 5 == 0 or i == total_chunks:
+                progress = (i / total_chunks) * 100
+                print(f"📈 Progress: {i}/{total_chunks} chunks ({progress:.1f}%)")
 
         except Exception as e:
-            print(f"❌ Error processing chunk: {e}")
+            print(f"❌ Error processing chunk {i}/{total_chunks}: {e}")
             continue
 
     # Insert chunks
@@ -97,8 +112,8 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
         with psycopg.connect(database_url) as conn:
             with conn.cursor() as cursor:
                 insert_sql = f"""
-                INSERT INTO {table_name} (text, vector, metadata)
-                VALUES (%s, %s, %s)
+                INSERT INTO {table_name} (business_id, text, vector, metadata)
+                VALUES (%s, %s, %s, %s)
                 """
                 cursor.executemany(insert_sql, chunk_data)
                 conn.commit()
