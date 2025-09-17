@@ -13,10 +13,19 @@ jobs:
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh/
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+        # Write SSH key with proper line endings
+        printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
-        echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+        # Write known hosts
+        printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
         chmod 644 ~/.ssh/known_hosts
+        # Verify key format
+        echo "Testing SSH key format..."
+        ssh-keygen -l -f ~/.ssh/deploy_key
+        # Start SSH agent and add key
+        eval "$(ssh-agent -s)"
+        ssh-add ~/.ssh/deploy_key
+        echo "SSH setup complete"
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
