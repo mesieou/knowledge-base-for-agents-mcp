@@ -12,10 +12,8 @@ COPY requirements.txt .
 RUN uv venv
 RUN uv pip install -r requirements.txt
 
-# Copy all application code
-COPY . .
+COPY server.py .
 
 EXPOSE 8000
 
-# Use python3 explicitly to run the server
-CMD ["uv", "run", "python3", "server.py"]
+CMD ["uv", "run", "server.py"]
