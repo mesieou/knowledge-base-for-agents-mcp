@@ -15,18 +15,36 @@ jobs:
         host: 45.151.154.42
         username: root
         key: ${{ secrets.KAMATERA_SSH_KEY }}
+        port: 22
+        timeout: 60s
+        command_timeout: 10m
         script: |
+          set -e  # Exit on any error
+          echo "🚀 Starting deployment..."
+
           # Stop existing container
+          echo "⏹️ Stopping existing containers..."
           docker stop knowledge-base-mcp || true
           docker rm knowledge-base-mcp || true
 
+          # Remove old images to save space
+          docker image prune -f || true
+
           # Pull latest code (build directly on Kamatera)
-          cd /root/knowledge-base-for-agents-mcp || git clone https://github.com/mesieou/knowledge-base-for-agents-mcp.git /root/knowledge-base-for-agents-mcp
-          cd /root/knowledge-base-for-agents-mcp
-          git pull
+          echo "📥 Pulling latest code..."
+          if [ -d "/root/knowledge-base-for-agents-mcp" ]; then
+            cd /root/knowledge-base-for-agents-mcp
+            git pull origin master
+          else
+            git clone https://github.com/mesieou/knowledge-base-for-agents-mcp.git /root/knowledge-base-for-agents-mcp
+            cd /root/knowledge-base-for-agents-mcp
+          fi
 
           # Build and run on Kamatera (no tar files needed)
+          echo "🔨 Building Docker image..."
           docker build -t knowledge-base-mcp .
+
+          echo "🚀 Starting new container..."
           docker run -d -p 8000:8000 \
             -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
             -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
@@ -34,3 +52,16 @@ jobs:
             --name knowledge-base-mcp \
             --restart unless-stopped \
             knowledge-base-mcp:latest
+
+          echo "✅ Deployment completed successfully!"
+
+          # Verify the container is running
+          sleep 5
+          if docker ps | grep -q knowledge-base-mcp; then
+            echo "✅ Container is running"
+            docker logs --tail 10 knowledge-base-mcp
+          else
+            echo "❌ Container failed to start"
+            docker logs knowledge-base-mcp
+            exit 1
+          fi
