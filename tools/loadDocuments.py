@@ -2,12 +2,24 @@
 Thin MCP tool wrapper - orchestrates extraction, chunking, and embedding
 """
 import os
+import logging
+import sys
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 
 from processing import extract_documents, chunk_documents, create_embeddings_table, embed_and_store_chunks
 
 load_dotenv()
+
+# Configure logging for Railway
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # Force stdout for Railway
+    ]
+)
+logger = logging.getLogger(__name__)
 
 
 def load_documents(
@@ -39,24 +51,24 @@ def load_documents(
         raise ValueError("At least one source must be provided")
 
     # Step 1: Extract documents
-    print(f"🔍 Step 1/4: Extracting {len(sources)} documents...")
+    logger.info(f"🔍 Step 1/4: Extracting {len(sources)} documents...")
     documents = extract_documents(sources)
-    print(f"✅ Extracted {len(documents)} documents")
+    logger.info(f"✅ Extracted {len(documents)} documents")
 
     # Step 2: Chunk documents
-    print(f"✂️ Step 2/4: Chunking documents (max_tokens: {max_tokens})...")
+    logger.info(f"✂️ Step 2/4: Chunking documents (max_tokens: {max_tokens})...")
     chunks = chunk_documents(documents, max_tokens)
-    print(f"✅ Created {len(chunks)} chunks")
+    logger.info(f"✅ Created {len(chunks)} chunks")
 
     # Step 3: Create table
-    print("🗄️ Step 3/4: Creating database table...")
+    logger.info("🗄️ Step 3/4: Creating database table...")
     actual_table_name = create_embeddings_table(database_url, table_name)
-    print(f"✅ Table created: {actual_table_name}")
+    logger.info(f"✅ Table created: {actual_table_name}")
 
     # Step 4: Generate embeddings and store
-    print(f"🤖 Step 4/4: Generating embeddings for {len(chunks)} chunks...")
+    logger.info(f"🤖 Step 4/4: Generating embeddings for {len(chunks)} chunks...")
     row_count = embed_and_store_chunks(chunks, database_url, actual_table_name, openai_api_key)
-    print(f"✅ Pipeline complete: {row_count} chunks stored")
+    logger.info(f"✅ Pipeline complete: {row_count} chunks stored")
 
     return {
         "table_name": actual_table_name,
