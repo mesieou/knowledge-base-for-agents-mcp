@@ -1,19 +1,19 @@
-FROM python:3.12-slim
+# Use Python 3.13 for latest performance
+FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install uv
-RUN pip install uv
+# Install uv for faster package management
+RUN pip install --no-cache-dir uv
 
-# Copy requirements file
+# Copy requirements and install with uv globally (faster)
 COPY requirements.txt .
+RUN uv pip install --system -r requirements.txt
 
-# Install dependencies with uv
-RUN uv venv
-RUN uv pip install -r requirements.txt
-
-COPY server.py .
+# Copy application code
+COPY . .
 
 EXPOSE 8000
 
-CMD ["uv", "run", "server.py"]
+# Run with system python3 (packages installed globally)
+CMD ["python3", "server.py"]

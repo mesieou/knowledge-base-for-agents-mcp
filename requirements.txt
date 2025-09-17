@@ -1,10 +1,12 @@
 # Core MCP
 mcp[cli]>=1.14.0
 fastmcp
-starlette
 uvicorn
 anyio
 pydantic
+
+# Web framework
+starlette
 
 # Document Processing
 docling

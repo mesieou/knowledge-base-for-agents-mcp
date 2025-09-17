@@ -2,9 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastmcp import FastMCP
-from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
-from starlette.routing import Mount
 import uvicorn
 
 from tools.loadDocuments import load_documents
