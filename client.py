@@ -17,7 +17,7 @@ async def timed_tool_call(session: ClientSession, tool_name: str, arguments: Dic
 
 async def main():
     # Connect to a streamable HTTP server
-    async with streamablehttp_client("http://localhost:8000/mcp") as (
+    async with streamablehttp_client("https://knowledge-base-for-agents-mcp-production.up.railway.app/mcp") as (
         read_stream,
         write_stream,
         _,
@@ -37,24 +37,22 @@ async def main():
             list_time = time.perf_counter() - list_start
             print(f"🔧 Available tools ({list_time:.3f}s): {[tool.name for tool in tools.tools]}")
 
-            # Test the greet tool with timing
-            print("\n🚀 Testing tools with timing:")
-            result, duration = await timed_tool_call(session, "greet", {"name": "Python MCP"})
-            print(f"⏱️  greet tool: {duration:.3f}s")
+            # Test the load_documents_tool with timing
+            print("\n🚀 Testing load_documents_tool:")
+            result, duration = await timed_tool_call(session, "load_documents_tool", {
+                "sources": ["https://arxiv.org/pdf/2408.09869"],
+                "table_name": "test_railway_deployment",
+                "max_tokens": 1000
+            })
+            print(f"⏱️  load_documents_tool: {duration:.3f}s")
             print(f"📝 Result: {result.content}")
 
-            # Test the fetch_weather tool with timing
-            weather_result, weather_duration = await timed_tool_call(session, "fetch_weather", {"city": "New York"})
-            print(f"⏱️  fetch_weather tool: {weather_duration:.3f}s")
-            print(f"📝 Result: {weather_result.content}")
-
             # Summary
-            total_time = init_time + list_time + duration + weather_duration
+            total_time = init_time + list_time + duration
             print(f"\n📊 Performance Summary:")
             print(f"   Connection: {init_time:.3f}s")
             print(f"   List tools: {list_time:.3f}s")
-            print(f"   Greet tool: {duration:.3f}s")
-            print(f"   Weather tool: {weather_duration:.3f}s")
+            print(f"   Load documents: {duration:.3f}s")
             print(f"   Total time: {total_time:.3f}s")
 
 
