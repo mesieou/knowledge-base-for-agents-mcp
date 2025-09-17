@@ -10,80 +10,70 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Load environment variables
+    - name: Setup SSH
       run: |
-        if [ -f .env ]; then
-          export $(cat .env | xargs)
-          echo "SSH_KEY<<EOF" >> $GITHUB_ENV
-          echo "$KAMATERA_SSH_KEY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
-          echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> $GITHUB_ENV
-          echo "BUSINESS_ID=$BUSINESS_ID" >> $GITHUB_ENV
-        fi
+        mkdir -p ~/.ssh/
+        echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
 
     - name: Deploy to Kamatera
-      uses: appleboy/ssh-action@v0.1.5
-      with:
-        host: 45.151.154.42
-        username: root
-        key: ${{ env.SSH_KEY }}
-        port: 22
-        timeout: 60s
-        command_timeout: 10m
-        script: |
-          set -e  # Exit on any error
-          echo "🚀 Starting deployment..."
+      run: |
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@45.151.154.42 << 'EOF'
+        set -e  # Exit on any error
+        echo "🚀 Starting deployment..."
 
-          # Stop existing container
-          echo "⏹️ Stopping existing containers..."
-          docker stop knowledge-base-mcp || true
-          docker rm knowledge-base-mcp || true
+        # Stop existing container
+        echo "⏹️ Stopping existing containers..."
+        docker stop knowledge-base-mcp || true
+        docker rm knowledge-base-mcp || true
 
-          # Remove old images to save space
-          docker image prune -f || true
+        # Remove old images to save space
+        docker image prune -f || true
 
-          # Pull latest code (build directly on Kamatera)
-          echo "📥 Pulling latest code..."
-          if [ -d "/root/knowledge-base-for-agents-mcp" ]; then
-            cd /root/knowledge-base-for-agents-mcp
-            git pull origin master
-          else
-            git clone https://github.com/mesieou/knowledge-base-for-agents-mcp.git /root/knowledge-base-for-agents-mcp
-            cd /root/knowledge-base-for-agents-mcp
-          fi
+        # Pull latest code (build directly on Kamatera)
+        echo "📥 Pulling latest code..."
+        if [ -d "/root/knowledge-base-for-agents-mcp" ]; then
+          cd /root/knowledge-base-for-agents-mcp
+          git pull origin master
+        else
+          git clone https://github.com/mesieou/knowledge-base-for-agents-mcp.git /root/knowledge-base-for-agents-mcp
+          cd /root/knowledge-base-for-agents-mcp
+        fi
 
-          # Build and run on Kamatera (no tar files needed)
-          echo "🔨 Building Docker image..."
-          docker build -t knowledge-base-mcp .
+        # Build and run on Kamatera (no tar files needed)
+        echo "🔨 Building Docker image..."
+        docker build -t knowledge-base-mcp .
 
-          echo "🚀 Starting new container..."
+        echo "🚀 Starting new container..."
 
-          # Create .env file with values from GitHub environment
-          cat > .env << EOF
-          DATABASE_URL=${{ env.DATABASE_URL }}
-          OPENAI_API_KEY=${{ env.OPENAI_API_KEY }}
-          BUSINESS_ID=${{ env.BUSINESS_ID }}
-          EOF
+        # Create .env file with secrets
+        cat > .env << ENVEOF
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+        BUSINESS_ID=${{ secrets.BUSINESS_ID }}
+        ENVEOF
 
-          docker run -d -p 8000:8000 \
-            --env-file .env \
-            --name knowledge-base-mcp \
-            --restart unless-stopped \
-            knowledge-base-mcp:latest
+        docker run -d -p 8000:8000 \
+          --env-file .env \
+          --name knowledge-base-mcp \
+          --restart unless-stopped \
+          knowledge-base-mcp:latest
 
-          echo "✅ Deployment completed successfully!"
+        echo "✅ Deployment completed successfully!"
 
-          # Verify the container is running
-          sleep 5
-          if docker ps | grep -q knowledge-base-mcp; then
-            echo "✅ Container is running"
-            docker logs --tail 10 knowledge-base-mcp
-          else
-            echo "❌ Container failed to start"
-            docker logs knowledge-base-mcp
-            exit 1
-          fi
+        # Verify the container is running
+        sleep 5
+        if docker ps | grep -q knowledge-base-mcp; then
+          echo "✅ Container is running"
+          docker logs --tail 10 knowledge-base-mcp
+        else
+          echo "❌ Container failed to start"
+          docker logs knowledge-base-mcp
+          exit 1
+        fi
+        EOF
