@@ -3,6 +3,7 @@ name: Deploy to Kamatera
 on:
   push:
     branches: [ master ]
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
   deploy:
