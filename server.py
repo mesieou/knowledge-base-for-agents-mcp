@@ -29,7 +29,7 @@ def load_documents_tool(
 ) -> Dict[str, Any]:
     """Load and process documents into vector DB."""
     try:
-        logger.info("🚀 Tool called - starting pipeline")
+        logger.info("🚀 Tool called - starting REAL pipeline (Kamatera has resources)")
         result = load_documents(sources=sources, table_name=table_name, max_tokens=max_tokens)
         logger.info(f"✅ Tool completed - returning result: {result}")
         return result

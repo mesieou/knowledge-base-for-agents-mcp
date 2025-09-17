@@ -9,14 +9,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Build Docker image
-      run: docker build -t knowledge-base-mcp .
-
-    - name: Save Docker image
-      run: docker save knowledge-base-mcp:latest | gzip > knowledge-base-mcp.tar.gz
-
     - name: Deploy to Kamatera
       uses: appleboy/ssh-action@v0.1.5
       with:
@@ -28,12 +20,12 @@ jobs:
           docker stop knowledge-base-mcp || true
           docker rm knowledge-base-mcp || true
 
-          # Pull latest code
+          # Pull latest code (build directly on Kamatera)
           cd /root/knowledge-base-for-agents-mcp || git clone https://github.com/mesieou/knowledge-base-for-agents-mcp.git /root/knowledge-base-for-agents-mcp
           cd /root/knowledge-base-for-agents-mcp
           git pull
 
-          # Build and run
+          # Build and run on Kamatera (no tar files needed)
           docker build -t knowledge-base-mcp .
           docker run -d -p 8000:8000 \
             -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
