@@ -4,12 +4,13 @@ Document chunking using docling HybridChunker
 """
 from typing import List
 from docling.chunking import HybridChunker
-from utils.tokenizer import OpenAITokenizerWrapper
+from transformers import AutoTokenizer
 
 
 def chunk_documents(documents: List, max_tokens: int = 8191) -> List:
     """Chunk documents using HybridChunker"""
-    tokenizer = OpenAITokenizerWrapper()
+    # Use a standard HuggingFace tokenizer that works with HybridChunker
+    tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
     chunker = HybridChunker(
         tokenizer=tokenizer,
         max_tokens=max_tokens,

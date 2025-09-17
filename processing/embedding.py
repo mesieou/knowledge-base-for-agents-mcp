@@ -31,25 +31,25 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
             except psycopg.Error as e:
                 print(f"⚠️ Could not enable pgvector: {e}")
 
-    # Create table with pgvector support
-    create_sql = f"""
-    CREATE TABLE IF NOT EXISTS {table_name} (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        text TEXT NOT NULL,
-        vector vector(1536),
-        metadata JSONB,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    );
+            # Create table with pgvector support
+            create_sql = f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                text TEXT NOT NULL,
+                vector vector(1536),
+                metadata JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
 
-    CREATE INDEX IF NOT EXISTS {table_name}_vector_idx
-    ON {table_name} USING ivfflat (vector vector_cosine_ops) WITH (lists = 100);
+            CREATE INDEX IF NOT EXISTS {table_name}_vector_idx
+            ON {table_name} USING ivfflat (vector vector_cosine_ops) WITH (lists = 100);
 
-    CREATE INDEX IF NOT EXISTS {table_name}_metadata_idx
-    ON {table_name} USING GIN (metadata);
-    """
+            CREATE INDEX IF NOT EXISTS {table_name}_metadata_idx
+            ON {table_name} USING GIN (metadata);
+            """
 
-    cursor.execute(create_sql)
-    conn.commit()
+            cursor.execute(create_sql)
+            conn.commit()
 
     print(f"✅ Created table: {table_name}")
     return table_name
@@ -62,9 +62,9 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
     chunk_data = []
     for chunk in chunks:
         try:
-            # Generate embedding
+            # Generate embedding (using small model for pgvector 2000 dimension limit)
             embedding_response = openai_client.embeddings.create(
-                model="text-embedding-3-large",
+                model="text-embedding-3-small",
                 input=chunk.text
             )
             embedding = embedding_response.data[0].embedding
