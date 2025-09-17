@@ -11,8 +11,15 @@ async def timed_tool_call(session: ClientSession, tool_name: str, arguments: Dic
     start_time = time.perf_counter()
 
     try:
-        print(f"⏳ Calling {tool_name} (timeout: 5 minutes)...")
-        print("📋 Check Railway logs for detailed progress...")
+        # Show what we're processing
+        if arguments and "sources" in arguments:
+            sources = arguments["sources"]
+            if len(sources) == 1:
+                print(f"📄 Processing: {sources[0]}")
+            else:
+                print(f"📄 Processing {len(sources)} sources...")
+
+        print(f"⏳ Executing {tool_name}...")
 
         # Add periodic progress updates
         async def call_with_updates():
@@ -20,28 +27,28 @@ async def timed_tool_call(session: ClientSession, tool_name: str, arguments: Dic
             start = time.perf_counter()
 
             while not task.done():
-                await asyncio.sleep(10)  # Check every 10 seconds
+                await asyncio.sleep(15)  # Check every 15 seconds
                 elapsed = time.perf_counter() - start
-                print(f"⏳ Still processing... {elapsed:.0f}s elapsed")
+                print(f"⏳ Processing... {elapsed:.0f}s elapsed")
 
             return await task
 
         result = await asyncio.wait_for(call_with_updates(), timeout=300)
         end_time = time.perf_counter()
         duration = end_time - start_time
-        print(f"✅ {tool_name} completed in {duration:.1f}s")
+        print(f"✅ Completed in {duration:.1f}s")
         return result, duration
 
     except asyncio.TimeoutError:
         end_time = time.perf_counter()
         duration = end_time - start_time
-        print(f"⏰ {tool_name} timed out after {duration:.1f}s")
+        print(f"⏰ Timed out after {duration:.1f}s")
         raise
 
     except Exception as e:
         end_time = time.perf_counter()
         duration = end_time - start_time
-        print(f"❌ {tool_name} failed after {duration:.1f}s: {e}")
+        print(f"❌ Failed after {duration:.1f}s: {e}")
         raise
 
 
@@ -67,16 +74,10 @@ async def main():
             list_time = time.perf_counter() - list_start
             print(f"🔧 Available tools ({list_time:.3f}s): {[tool.name for tool in tools.tools]}")
 
-            # Test ping first (quick test)
-            print("\n🏓 Testing ping:")
-            ping_result, ping_duration = await timed_tool_call(session, "ping")
-            print(f"⏱️  ping: {ping_duration:.3f}s")
-            print(f"📝 Ping result: {ping_result.content}")
-
             # Test the load_documents_tool with timing
             print("\n🚀 Testing load_documents_tool:")
             result, duration = await timed_tool_call(session, "load_documents_tool", {
-                "sources": ["https://arxiv.org/pdf/2408.09869"],
+                "sources": ["https://tigapropertyservices.com.au/"],
                 "table_name": "test_railway_deployment",
                 "max_tokens": 1000
             })
@@ -86,10 +87,10 @@ async def main():
             # Summary
             total_time = init_time + list_time + duration
             print(f"\n📊 Performance Summary:")
-            print(f"   Connection: {init_time:.3f}s")
-            print(f"   List tools: {list_time:.3f}s")
-            print(f"   Load documents: {duration:.3f}s")
-            print(f"   Total time: {total_time:.3f}s")
+            print(f"   🔗 Connection: {init_time:.3f}s")
+            print(f"   🔧 List tools: {list_time:.3f}s")
+            print(f"   📄 Load documents: {duration:.3f}s")
+            print(f"   ⏱️  Total time: {total_time:.3f}s")
 
 
 if __name__ == "__main__":
