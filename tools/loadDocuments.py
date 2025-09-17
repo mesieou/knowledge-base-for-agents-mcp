@@ -5,7 +5,7 @@ import os
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 
-from docling import extract_documents, chunk_documents, create_embeddings_table, embed_and_store_chunks
+from processing import extract_documents, chunk_documents, create_embeddings_table, embed_and_store_chunks
 
 load_dotenv()
 

@@ -1,5 +1,5 @@
 """
-Document processing pipeline using docling
+Document processing pipeline using docling library
 """
 from .extraction import extract_documents, extract_from_sitemap
 from .chunking import chunk_documents

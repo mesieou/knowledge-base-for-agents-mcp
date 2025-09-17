@@ -6,8 +6,8 @@ import json
 import time
 import uuid
 from typing import List, Dict, Any
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.rows import dict_row
 from openai import OpenAI
 
 
@@ -21,16 +21,15 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
     # Sanitize table name
     table_name = table_name.replace('-', '_').replace(' ', '_')
 
-    conn = psycopg2.connect(database_url)
-    cursor = conn.cursor()
-
-    # Enable pgvector extension
-    try:
-        cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        conn.commit()
-        print("✅ pgvector extension enabled")
-    except psycopg2.Error as e:
-        print(f"⚠️ Could not enable pgvector: {e}")
+    with psycopg.connect(database_url) as conn:
+        with conn.cursor() as cursor:
+            # Enable pgvector extension
+            try:
+                cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                conn.commit()
+                print("✅ pgvector extension enabled")
+            except psycopg.Error as e:
+                print(f"⚠️ Could not enable pgvector: {e}")
 
     # Create table with pgvector support
     create_sql = f"""
@@ -51,8 +50,6 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
 
     cursor.execute(create_sql)
     conn.commit()
-    cursor.close()
-    conn.close()
 
     print(f"✅ Created table: {table_name}")
     return table_name
@@ -61,9 +58,6 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
 def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, openai_api_key: str) -> int:
     """Generate embeddings and store chunks in PostgreSQL"""
     openai_client = OpenAI(api_key=openai_api_key)
-
-    conn = psycopg2.connect(database_url)
-    cursor = conn.cursor()
 
     chunk_data = []
     for chunk in chunks:
@@ -100,16 +94,16 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
 
     # Insert chunks
     if chunk_data:
-        insert_sql = f"""
-        INSERT INTO {table_name} (text, vector, metadata)
-        VALUES (%s, %s, %s)
-        """
-        cursor.executemany(insert_sql, chunk_data)
-        conn.commit()
-        print(f"✅ Stored {len(chunk_data)} chunks with embeddings")
+        with psycopg.connect(database_url) as conn:
+            with conn.cursor() as cursor:
+                insert_sql = f"""
+                INSERT INTO {table_name} (text, vector, metadata)
+                VALUES (%s, %s, %s)
+                """
+                cursor.executemany(insert_sql, chunk_data)
+                conn.commit()
+                print(f"✅ Stored {len(chunk_data)} chunks with embeddings")
 
-    cursor.close()
-    conn.close()
     return len(chunk_data)
 
 

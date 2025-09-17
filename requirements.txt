@@ -1,7 +1,9 @@
 # MCP Server Framework
 mcp[cli]>=1.14.0
+fastmcp
 fastapi
 uvicorn
+starlette
 
 # Document Processing
 docling
@@ -11,10 +13,11 @@ transformers
 # AI/ML
 openai
 
-# Database
-psycopg2-binary
+# Database (modern PostgreSQL adapter)
+psycopg[binary]
 
 # Utilities
 requests
 python-dotenv
 pydantic
+anyio

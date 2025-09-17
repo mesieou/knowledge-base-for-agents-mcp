@@ -1,23 +1,54 @@
-from typing import Dict, List, Optional, Any
-from mcp.server.fastmcp import FastMCP
+import logging
+from typing import Any, Dict, List, Optional
+
+from fastmcp import FastMCP
+from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
+from starlette.routing import Mount
+import uvicorn
+
 from tools.loadDocuments import load_documents
 
-# Create MCP server
-mcp = FastMCP(
-    name="KnowledgeBaseMCP",
-    host="0.0.0.0",  # Docker-ready
-    port=8000,
+# ------------------------
+# Logging
+# ------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+logger = logging.getLogger(__name__)
 
-@mcp.tool()
+# ------------------------
+# FastMCP server
+# ------------------------
+mcp = FastMCP("KnowledgeBaseMCP")
+
+@mcp.tool
 def load_documents_tool(
     sources: Optional[List[str]] = None,
     table_name: Optional[str] = None,
     max_tokens: int = 8191
 ) -> Dict[str, Any]:
+    """Load and process documents into vector DB."""
     return load_documents(sources=sources, table_name=table_name, max_tokens=max_tokens)
 
+# ------------------------
+# ASGI app
+# ------------------------
+app = mcp.http_app(path="/mcp")
+
+
+# Add CORS middleware for browser access
+app = CORSMiddleware(
+    app,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "DELETE"],
+    expose_headers=["Mcp-Session-Id"]
+)
+
+# ------------------------
+# Run server
+# ------------------------
 if __name__ == "__main__":
-    # Now FastMCP should bind to 0.0.0.0:8000 properly!
-    print("🚀 Starting FastMCP with host=0.0.0.0:8000")
-    mcp.run(transport="streamable-http")
+    logger.info("🚀 Starting MCP Server on 0.0.0.0:8000")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
