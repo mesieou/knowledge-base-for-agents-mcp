@@ -1,0 +1,44 @@
+name: Deploy to Kamatera
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build Docker image
+      run: docker build -t knowledge-base-mcp .
+
+    - name: Save Docker image
+      run: docker save knowledge-base-mcp:latest | gzip > knowledge-base-mcp.tar.gz
+
+    - name: Deploy to Kamatera
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: 45.151.154.42
+        username: root
+        key: ${{ secrets.KAMATERA_SSH_KEY }}
+        script: |
+          # Stop existing container
+          docker stop knowledge-base-mcp || true
+          docker rm knowledge-base-mcp || true
+
+          # Pull latest code
+          cd /root/knowledge-base-for-agents-mcp || git clone https://github.com/mesieou/knowledge-base-for-agents-mcp.git /root/knowledge-base-for-agents-mcp
+          cd /root/knowledge-base-for-agents-mcp
+          git pull
+
+          # Build and run
+          docker build -t knowledge-base-mcp .
+          docker run -d -p 8000:8000 \
+            -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            -e BUSINESS_ID="${{ secrets.BUSINESS_ID }}" \
+            --name knowledge-base-mcp \
+            --restart unless-stopped \
+            knowledge-base-mcp:latest
