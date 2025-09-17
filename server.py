@@ -22,13 +22,20 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("KnowledgeBaseMCP")
 
 @mcp.tool
-async def load_documents_tool(
+def load_documents_tool(
     sources: Optional[List[str]] = None,
     table_name: Optional[str] = None,
     max_tokens: int = 8191
 ) -> Dict[str, Any]:
     """Load and process documents into vector DB."""
-    return load_documents(sources=sources, table_name=table_name, max_tokens=max_tokens)
+    try:
+        logger.info("🚀 Tool called - starting pipeline")
+        result = load_documents(sources=sources, table_name=table_name, max_tokens=max_tokens)
+        logger.info(f"✅ Tool completed - returning result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Tool failed: {e}", exc_info=True)
+        return {"error": str(e), "row_count": 0, "stored_files": []}
 
 # ------------------------
 # ASGI app
