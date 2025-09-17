@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("KnowledgeBaseMCP")
 
 @mcp.tool
-def load_documents_tool(
+async def load_documents_tool(
     sources: Optional[List[str]] = None,
     table_name: Optional[str] = None,
     max_tokens: int = 8191

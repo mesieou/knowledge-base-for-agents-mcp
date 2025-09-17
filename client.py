@@ -7,12 +7,31 @@ from mcp.client.streamable_http import streamablehttp_client
 
 
 async def timed_tool_call(session: ClientSession, tool_name: str, arguments: Dict[str, Any] = None) -> tuple:
-    """Call a tool and measure the execution time."""
+    """Call a tool and measure the execution time with timeout and error handling."""
     start_time = time.perf_counter()
-    result = await session.call_tool(tool_name, arguments or {})
-    end_time = time.perf_counter()
-    duration = end_time - start_time
-    return result, duration
+
+    try:
+        print(f"⏳ Calling {tool_name} (timeout: 5 minutes)...")
+        result = await asyncio.wait_for(
+            session.call_tool(tool_name, arguments or {}),
+            timeout=300  # 5 minute timeout
+        )
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        print(f"✅ {tool_name} completed in {duration:.1f}s")
+        return result, duration
+
+    except asyncio.TimeoutError:
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        print(f"⏰ {tool_name} timed out after {duration:.1f}s")
+        raise
+
+    except Exception as e:
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        print(f"❌ {tool_name} failed after {duration:.1f}s: {e}")
+        raise
 
 
 async def main():
