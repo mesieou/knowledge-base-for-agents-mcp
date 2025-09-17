@@ -8,11 +8,27 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: kamatura
 
     steps:
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh/
+        # Debug: Check if secrets are loaded
+        echo "Checking secrets..."
+        echo "SSH_PRIVATE_KEY length: ${#SSH_PRIVATE_KEY}"
+        echo "SSH_KNOWN_HOSTS length: ${#SSH_KNOWN_HOSTS}"
+
+        if [ -z "$SSH_PRIVATE_KEY" ]; then
+          echo "❌ SSH_PRIVATE_KEY is empty!"
+          exit 1
+        fi
+
+        if [ -z "$SSH_KNOWN_HOSTS" ]; then
+          echo "❌ SSH_KNOWN_HOSTS is empty!"
+          exit 1
+        fi
+
         # Write SSH key with proper line endings
         printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
         chmod 600 ~/.ssh/deploy_key
