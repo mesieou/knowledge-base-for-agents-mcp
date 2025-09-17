@@ -10,12 +10,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Load environment variables
+      run: |
+        if [ -f .env ]; then
+          export $(cat .env | xargs)
+          echo "SSH_KEY<<EOF" >> $GITHUB_ENV
+          echo "$KAMATERA_SSH_KEY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
+          echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> $GITHUB_ENV
+          echo "BUSINESS_ID=$BUSINESS_ID" >> $GITHUB_ENV
+        fi
+
     - name: Deploy to Kamatera
       uses: appleboy/ssh-action@v0.1.5
       with:
         host: 45.151.154.42
         username: root
-        key: ${{ secrets.KAMATERA_SSH_KEY }}
+        key: ${{ env.SSH_KEY }}
         port: 22
         timeout: 60s
         command_timeout: 10m
@@ -46,10 +61,16 @@ jobs:
           docker build -t knowledge-base-mcp .
 
           echo "🚀 Starting new container..."
+
+          # Create .env file with values from GitHub environment
+          cat > .env << EOF
+          DATABASE_URL=${{ env.DATABASE_URL }}
+          OPENAI_API_KEY=${{ env.OPENAI_API_KEY }}
+          BUSINESS_ID=${{ env.BUSINESS_ID }}
+          EOF
+
           docker run -d -p 8000:8000 \
-            -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-            -e BUSINESS_ID="${{ secrets.BUSINESS_ID }}" \
+            --env-file .env \
             --name knowledge-base-mcp \
             --restart unless-stopped \
             knowledge-base-mcp:latest
