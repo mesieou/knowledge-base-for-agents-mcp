@@ -22,6 +22,12 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("KnowledgeBaseMCP")
 
 @mcp.tool
+def ping() -> str:
+    """Simple ping test to verify server is working"""
+    logger.info("🏓 Ping received")
+    return "pong"
+
+@mcp.tool
 def load_documents_tool(
     sources: Optional[List[str]] = None,
     table_name: Optional[str] = None,

@@ -67,6 +67,12 @@ async def main():
             list_time = time.perf_counter() - list_start
             print(f"🔧 Available tools ({list_time:.3f}s): {[tool.name for tool in tools.tools]}")
 
+            # Test ping first (quick test)
+            print("\n🏓 Testing ping:")
+            ping_result, ping_duration = await timed_tool_call(session, "ping")
+            print(f"⏱️  ping: {ping_duration:.3f}s")
+            print(f"📝 Ping result: {ping_result.content}")
+
             # Test the load_documents_tool with timing
             print("\n🚀 Testing load_documents_tool:")
             result, duration = await timed_tool_call(session, "load_documents_tool", {
