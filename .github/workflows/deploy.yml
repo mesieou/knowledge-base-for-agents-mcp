@@ -66,3 +66,4 @@ jobs:
             docker logs knowledge-base-mcp
             exit 1
           fi
+# Force refresh workflow
