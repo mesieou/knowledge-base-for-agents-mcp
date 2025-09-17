@@ -1,26 +1,68 @@
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# TypeScript build artifacts
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# IDE files
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE settings (personal preferences)
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+
+# Local data (we use remote databases)
+data/
+*.db
+*.sqlite
+*.sqlite3
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-
-# Environment files
-.env
-.env.local
-.env.production
 
 # Logs
 *.log
+logs/
+
+# Docker
+.dockerignore
+
+# Environment variables (sensitive)
+.env.local
+.env.production
+
+# Temporary files
+tmp/
+temp/

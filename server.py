@@ -1,26 +1,21 @@
-"""
-Production-ready MCP server following Docker best practices
-"""
-
-import os
+from typing import Dict, List, Optional, Any
 from mcp.server.fastmcp import FastMCP
+from tools.loadDocuments import load_documents
 
-# Create MCP server with proper Docker host binding
+# Create MCP server
 mcp = FastMCP(
     name="KnowledgeBaseMCP",
-    host="0.0.0.0",  # Bind to all interfaces for Docker
-    port=8000,       # Port for the server
+    host="0.0.0.0",  # Docker-ready
+    port=8000,
 )
 
 @mcp.tool()
-def greet(name: str = "World") -> str:
-    """Greet someone by name."""
-    return f"Hello, {name}!"
-
-@mcp.tool()
-def fetch_weather(city: str) -> str:
-    """Get weather data for a city (mock implementation)."""
-    return f"Weather in {city}: Sunny, 25°C"
+def load_documents_tool(
+    sources: Optional[List[str]] = None,
+    table_name: Optional[str] = None,
+    max_tokens: int = 8191
+) -> Dict[str, Any]:
+    return load_documents(sources=sources, table_name=table_name, max_tokens=max_tokens)
 
 if __name__ == "__main__":
     # Now FastMCP should bind to 0.0.0.0:8000 properly!
