@@ -22,3 +22,4 @@ psycopg[binary]
 # Utilities
 requests
 python-dotenv
+beautifulsoup4

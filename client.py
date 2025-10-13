@@ -52,9 +52,27 @@ async def timed_tool_call(session: ClientSession, tool_name: str, arguments: Dic
         raise
 
 
-async def main():
-    # Connect to a streamable HTTP server
-    async with streamablehttp_client("http://45.151.154.42:8000/mcp") as (
+async def load_website_to_knowledge_base(
+    website_url: str,
+    database_url: str,
+    business_id: str = None,
+    table_name: str = None,
+    server_url: str = "http://45.151.154.42:8000/mcp",
+    max_tokens: int = 8191
+):
+    """Load a website into the knowledge base"""
+    if not table_name:
+        table_name = f"website_{int(time.time())}"
+
+    print(f"🚀 Loading website: {website_url}")
+    print(f"📊 Database: {database_url[:50]}...")
+    print(f"📋 Table: {table_name}")
+    if business_id:
+        print(f"🏢 Business ID: {business_id}")
+    print()
+
+    # Connect to the streamable HTTP server
+    async with streamablehttp_client(server_url) as (
         read_stream,
         write_stream,
         _,
@@ -68,29 +86,36 @@ async def main():
             init_time = time.perf_counter() - init_start
             print(f"✅ Connected in {init_time:.3f}s")
 
-            # List available tools
-            list_start = time.perf_counter()
-            tools = await session.list_tools()
-            list_time = time.perf_counter() - list_start
-            print(f"🔧 Available tools ({list_time:.3f}s): {[tool.name for tool in tools.tools]}")
+            # Prepare tool arguments
+            tool_args = {
+                "sources": [website_url],
+                "table_name": table_name,
+                "max_tokens": max_tokens,
+                "database_url": database_url
+            }
 
-            # Test the load_documents_tool with timing
-            print("\n🚀 Testing load_documents_tool:")
-            result, duration = await timed_tool_call(session, "load_documents_tool", {
-                "sources": ["https://tigapropertyservices.com.au/"],
-                "table_name": "test_railway_deployment",
-                "max_tokens": 1000
-            })
-            print(f"⏱️  load_documents_tool: {duration:.3f}s")
+            # Add business_id if provided
+            if business_id:
+                tool_args["business_id"] = business_id
+
+            # Call the load_documents_tool
+            print("🚀 Loading documents...")
+            result, duration = await timed_tool_call(session, "load_documents_tool", tool_args)
+            print(f"⏱️  Completed in {duration:.3f}s")
             print(f"📝 Result: {result.content}")
 
-            # Summary
-            total_time = init_time + list_time + duration
-            print(f"\n📊 Performance Summary:")
-            print(f"   🔗 Connection: {init_time:.3f}s")
-            print(f"   🔧 List tools: {list_time:.3f}s")
-            print(f"   📄 Load documents: {duration:.3f}s")
-            print(f"   ⏱️  Total time: {total_time:.3f}s")
+            return result.content
+
+
+async def main():
+    """Example usage"""
+    result = await load_website_to_knowledge_base(
+        website_url="https://tigapropertyservices.com.au/",
+        database_url="postgresql://user:pass@host:port/db",
+        business_id="tiga_property_123",
+        table_name="tiga_website_data"
+    )
+    print("Final result:", result)
 
 
 if __name__ == "__main__":

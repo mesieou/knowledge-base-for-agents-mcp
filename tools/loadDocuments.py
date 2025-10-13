@@ -25,21 +25,28 @@ logger = logging.getLogger(__name__)
 def load_documents(
     sources: Optional[List[str]] = None,
     table_name: Optional[str] = None,
-    max_tokens: int = 8191
+    max_tokens: int = 8191,
+    crawl_internal: bool = True,
+    database_url: Optional[str] = None,
+    business_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Thin wrapper that orchestrates the document processing pipeline
     """
-    # Read environment variables
-    database_url = os.getenv("DATABASE_URL")
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    env_sources = os.getenv("SOURCES")
+    # Use provided database_url or fall back to environment variable
+    if not database_url:
+        database_url = os.getenv("DATABASE_URL")
 
     if not database_url:
-        raise ValueError("DATABASE_URL environment variable is required")
+        raise ValueError("DATABASE_URL must be provided as parameter or environment variable")
 
+    # OpenAI API key is still required from environment
+    openai_api_key = os.getenv("OPENAI_API_KEY")
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY environment variable is required")
+
+    # Get sources from environment if not provided
+    env_sources = os.getenv("SOURCES")
 
     # Parse sources
     if sources is None:
@@ -50,9 +57,13 @@ def load_documents(
     if not sources:
         raise ValueError("At least one source must be provided")
 
+    # Log business context if provided
+    if business_id:
+        logger.info(f"🏢 Processing for business ID: {business_id}")
+
     # Step 1: Extract documents
-    logger.info(f"🔍 Step 1/4: Extracting {len(sources)} documents...")
-    documents = extract_documents(sources)
+    logger.info(f"🔍 Step 1/4: Extracting {len(sources)} documents (crawl_internal={crawl_internal})...")
+    documents = extract_documents(sources, crawl_internal=crawl_internal)
     logger.info(f"✅ Extracted {len(documents)} documents")
 
     # Step 2: Chunk documents
