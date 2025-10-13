@@ -35,7 +35,7 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
             create_sql = f"""
             CREATE TABLE IF NOT EXISTS {table_name} (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                business_id TEXT NOT NULL,
+                business_id TEXT,
                 text TEXT NOT NULL,
                 vector vector(1536),
                 metadata JSONB,
@@ -59,12 +59,17 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
     return table_name
 
 
-def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, openai_api_key: str) -> int:
+def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, openai_api_key: str, business_id: str = None) -> int:
     """Generate embeddings and store chunks in PostgreSQL"""
     import os
 
     openai_client = OpenAI(api_key=openai_api_key)
-    business_id = os.getenv("BUSINESS_ID", "default_business")
+
+    # Log business_id usage
+    if business_id:
+        print(f"🏢 Using business_id: {business_id}")
+    else:
+        print("🏢 No business_id provided - will store with NULL business_id")
 
     chunk_data = []
     total_chunks = len(chunks)

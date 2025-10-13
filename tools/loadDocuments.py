@@ -78,7 +78,7 @@ def load_documents(
 
     # Step 4: Generate embeddings and store
     logger.info(f"🤖 Step 4/4: Generating embeddings for {len(chunks)} chunks...")
-    row_count = embed_and_store_chunks(chunks, database_url, actual_table_name, openai_api_key)
+    row_count = embed_and_store_chunks(chunks, database_url, actual_table_name, openai_api_key, business_id)
     logger.info(f"✅ Pipeline complete: {row_count} chunks stored")
 
     return {

@@ -111,9 +111,10 @@ async def main():
     """Example usage"""
     result = await load_website_to_knowledge_base(
         website_url="https://tigapropertyservices.com.au/",
-        database_url="postgresql://user:pass@host:port/db",
-        business_id="tiga_property_123",
-        table_name="tiga_website_data"
+        database_url="postgresql://postgres.prktfpcksfnfihsrrgnd:gPwpxnpgvBdQGCyU@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres",
+        business_id="48576899-068b-4d61-b131-9ab4e599bdea",
+        table_name="tiga_website_data",
+        server_url="http://localhost:8000/mcp"  # Use local server
     )
     print("Final result:", result)
 
