@@ -6,6 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 import uvicorn
 
 from tools.loadDocuments import load_documents
+from tools.queryKnowledge import query_knowledge_base
 
 # ------------------------
 # Logging
@@ -53,6 +54,39 @@ def load_documents_tool(
     except Exception as e:
         logger.error(f"❌ Tool failed: {e}", exc_info=True)
         return {"error": str(e), "row_count": 0, "stored_files": []}
+
+@mcp.tool
+def query_knowledge_tool(
+    question: str,
+    table_name: str,
+    database_url: str,
+    business_id: str,
+    match_threshold: float = 0.7,
+    match_count: int = 3
+) -> Dict[str, Any]:
+    """Query knowledge base using vector similarity search."""
+    try:
+        logger.info(f"🔍 Query tool called - question: '{question}'")
+        logger.info(f"📊 Table: {table_name}, Business: {business_id}")
+
+        result = query_knowledge_base(
+            question=question,
+            table_name=table_name,
+            database_url=database_url,
+            business_id=business_id,
+            match_threshold=match_threshold,
+            match_count=match_count
+        )
+
+        logger.info(f"✅ Query completed - {result.get('context_count', 0)} sources found")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Query tool failed: {e}", exc_info=True)
+        return {
+            "sources": [],
+            "context_count": 0,
+            "error": str(e)
+        }
 
 # ------------------------
 # ASGI app
