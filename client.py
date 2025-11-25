@@ -55,20 +55,17 @@ async def timed_tool_call(session: ClientSession, tool_name: str, arguments: Dic
 async def load_website_to_knowledge_base(
     website_url: str,
     database_url: str,
-    business_id: str = None,
-    table_name: str = None,
+    business_id: str,
+    category: str = "website",
     server_url: str = "http://45.151.154.42:8000/mcp",
     max_tokens: int = 8191
 ):
-    """Load a website into the knowledge base"""
-    if not table_name:
-        table_name = f"website_{int(time.time())}"
-
+    """Load a website into the knowledge_base table"""
     print(f"🚀 Loading website: {website_url}")
     print(f"📊 Database: {database_url[:50]}...")
-    print(f"📋 Table: {table_name}")
-    if business_id:
-        print(f"🏢 Business ID: {business_id}")
+    print(f"📋 Table: knowledge_base")
+    print(f"🏢 Business ID: {business_id}")
+    print(f"📂 Category: {category}")
     print()
 
     # Connect to the streamable HTTP server
@@ -89,14 +86,11 @@ async def load_website_to_knowledge_base(
             # Prepare tool arguments
             tool_args = {
                 "sources": [website_url],
-                "table_name": table_name,
-                "max_tokens": max_tokens,
-                "database_url": database_url
+                "database_url": database_url,
+                "business_id": business_id,
+                "category": category,
+                "max_tokens": max_tokens
             }
-
-            # Add business_id if provided
-            if business_id:
-                tool_args["business_id"] = business_id
 
             # Call the load_documents_tool
             print("🚀 Loading documents...")
@@ -113,7 +107,7 @@ async def main():
         website_url="https://tigapropertyservices.com.au/",
         database_url="postgresql://postgres.prktfpcksfnfihsrrgnd:gPwpxnpgvBdQGCyU@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres",
         business_id="48576899-068b-4d61-b131-9ab4e599bdea",
-        table_name="tiga_website_data",
+        category="website",
         server_url="http://localhost:8000/mcp"  # Use local server
     )
     print("Final result:", result)

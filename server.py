@@ -24,30 +24,39 @@ mcp = FastMCP("KnowledgeBaseMCP")
 
 @mcp.tool
 def load_documents_tool(
-    sources: Optional[List[str]] = None,
-    table_name: Optional[str] = None,
+    sources: List[str],
+    database_url: str,
+    business_id: str,
+    category: str = "website",
     max_tokens: int = 8191,
-    crawl_internal: bool = True,
-    database_url: Optional[str] = None,
-    business_id: Optional[str] = None
+    crawl_internal: bool = True
 ) -> Dict[str, Any]:
-    """Load and process documents into vector DB."""
+    """Load and process documents into knowledge_base table.
+
+    Args:
+        sources: List of URLs or file paths to process
+        database_url: PostgreSQL connection string
+        business_id: Business UUID from Skedy businesses table
+        category: Knowledge category (website, faq, policy, pricing, procedure, technical)
+        max_tokens: Maximum tokens per chunk
+        crawl_internal: Whether to crawl internal links
+    """
     try:
-        logger.info("🚀 Tool called - starting REAL pipeline (Kamatera has resources)")
+        logger.info("🚀 Tool called - starting knowledge_base pipeline")
 
         # Log received parameters
-        if database_url:
-            logger.info(f"📊 Using provided database_url: {database_url[:50]}...")
-        if business_id:
-            logger.info(f"🏢 Business ID: {business_id}")
+        logger.info(f"📊 Using provided database_url: {database_url[:50]}...")
+        logger.info(f"🏢 Business ID: {business_id}")
+        logger.info(f"📂 Category: {category}")
 
         result = load_documents(
+            business_id=business_id,
             sources=sources,
-            table_name=table_name,
+            table_name="knowledge_base",
             max_tokens=max_tokens,
             crawl_internal=crawl_internal,
             database_url=database_url,
-            business_id=business_id
+            category=category
         )
         logger.info(f"✅ Tool completed - returning result: {result}")
         return result
@@ -58,20 +67,27 @@ def load_documents_tool(
 @mcp.tool
 def query_knowledge_tool(
     question: str,
-    table_name: str,
     database_url: str,
     business_id: str,
     match_threshold: float = 0.7,
     match_count: int = 3
 ) -> Dict[str, Any]:
-    """Query knowledge base using vector similarity search."""
+    """Query knowledge_base table using vector similarity search.
+
+    Args:
+        question: The question to search for
+        database_url: PostgreSQL connection string
+        business_id: Business UUID from Skedy businesses table
+        match_threshold: Minimum similarity score (0-1)
+        match_count: Maximum number of results to return
+    """
     try:
         logger.info(f"🔍 Query tool called - question: '{question}'")
-        logger.info(f"📊 Table: {table_name}, Business: {business_id}")
+        logger.info(f"📊 Table: knowledge_base, Business: {business_id}")
 
         result = query_knowledge_base(
             question=question,
-            table_name=table_name,
+            table_name="knowledge_base",
             database_url=database_url,
             business_id=business_id,
             match_threshold=match_threshold,
