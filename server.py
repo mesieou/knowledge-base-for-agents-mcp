@@ -29,9 +29,10 @@ def load_documents_tool(
     business_id: str,
     category: str = "website",
     max_tokens: int = 8191,
-    crawl_internal: bool = True
+    crawl_internal: bool = True,
+    description: str = None
 ) -> Dict[str, Any]:
-    """Load and process documents into knowledge_base table.
+    """Load and process documents into knowledge_base with source tracking.
 
     Args:
         sources: List of URLs or file paths to process
@@ -40,14 +41,37 @@ def load_documents_tool(
         category: Knowledge category (website, faq, policy, pricing, procedure, technical)
         max_tokens: Maximum tokens per chunk
         crawl_internal: Whether to crawl internal links
+        description: Optional description for the sources
+
+    Returns:
+        Dict with comprehensive results including source tracking:
+        {
+            "table_name": "knowledge_base",
+            "total_entries": int,
+            "sources_processed": int,
+            "sources_successful": int,
+            "sources_failed": int,
+            "results": [
+                {
+                    "source_url": str,
+                    "source_id": str,
+                    "source_type": str,
+                    "status": "loaded|failed",
+                    "entry_count": int,
+                    "error": str (if failed)
+                }
+            ]
+        }
     """
     try:
-        logger.info("🚀 Tool called - starting knowledge_base pipeline")
+        logger.info("🚀 Tool called - starting knowledge_base pipeline with source tracking")
 
         # Log received parameters
         logger.info(f"📊 Using provided database_url: {database_url[:50]}...")
         logger.info(f"🏢 Business ID: {business_id}")
         logger.info(f"📂 Category: {category}")
+        if description:
+            logger.info(f"📝 Description: {description}")
 
         result = load_documents(
             business_id=business_id,
@@ -56,13 +80,21 @@ def load_documents_tool(
             max_tokens=max_tokens,
             crawl_internal=crawl_internal,
             database_url=database_url,
-            category=category
+            category=category,
+            description=description
         )
-        logger.info(f"✅ Tool completed - returning result: {result}")
+        logger.info(f"✅ Tool completed - {result['total_entries']} entries from {result['sources_successful']}/{result['sources_processed']} sources")
         return result
     except Exception as e:
         logger.error(f"❌ Tool failed: {e}", exc_info=True)
-        return {"error": str(e), "row_count": 0, "stored_files": []}
+        return {
+            "table_name": "knowledge_base",
+            "total_entries": 0,
+            "sources_processed": 0,
+            "sources_successful": 0,
+            "sources_failed": 1,
+            "results": [{"error": str(e), "status": "failed"}]
+        }
 
 @mcp.tool
 def query_knowledge_tool(

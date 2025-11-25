@@ -57,15 +57,18 @@ async def load_website_to_knowledge_base(
     database_url: str,
     business_id: str,
     category: str = "website",
+    description: str = None,
     server_url: str = "http://45.151.154.42:8000/mcp",
     max_tokens: int = 8191
 ):
-    """Load a website into the knowledge_base table"""
+    """Load a website into the knowledge_base table with source tracking"""
     print(f"🚀 Loading website: {website_url}")
     print(f"📊 Database: {database_url[:50]}...")
     print(f"📋 Table: knowledge_base")
     print(f"🏢 Business ID: {business_id}")
     print(f"📂 Category: {category}")
+    if description:
+        print(f"📝 Description: {description}")
     print()
 
     # Connect to the streamable HTTP server
@@ -92,6 +95,10 @@ async def load_website_to_knowledge_base(
                 "max_tokens": max_tokens
             }
 
+            # Add description if provided
+            if description:
+                tool_args["description"] = description
+
             # Call the load_documents_tool
             print("🚀 Loading documents...")
             result, duration = await timed_tool_call(session, "load_documents_tool", tool_args)
@@ -108,6 +115,7 @@ async def main():
         database_url="postgresql://postgres.prktfpcksfnfihsrrgnd:gPwpxnpgvBdQGCyU@aws-0-ap-southeast-2.pooler.supabase.com:6543/postgres",
         business_id="48576899-068b-4d61-b131-9ab4e599bdea",
         category="website",
+        description="Tiga Property Services website content",
         server_url="http://localhost:8000/mcp"  # Use local server
     )
     print("Final result:", result)

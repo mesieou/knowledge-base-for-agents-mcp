@@ -5,15 +5,20 @@ import os
 import json
 import time
 import uuid
+import logging
 from typing import List, Dict, Any
 import psycopg
 from psycopg.rows import dict_row
 from openai import OpenAI
 
+logger = logging.getLogger(__name__)
 
-def create_embeddings_table(database_url: str, table_name: str = None) -> str:
-    """Create knowledge_base table with proper schema"""
-    # Always use knowledge_base table - ignore any table_name parameter
+
+def create_embeddings_table(database_url: str, table_name: str = "knowledge_base") -> str:
+    """
+    Create or verify knowledge_base table with pgvector support
+    ALSO creates knowledge_sources tracking table
+    """
     table_name = "knowledge_base"
 
     with psycopg.connect(database_url) as conn:
@@ -27,7 +32,7 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
                 print(f"⚠️ Could not enable pgvector: {e}")
 
             # Create knowledge_base table with proper schema
-            create_sql = """
+            create_kb_sql = """
             CREATE TABLE IF NOT EXISTS knowledge_base (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 business_id UUID NOT NULL REFERENCES businesses(id),
@@ -53,16 +58,161 @@ def create_embeddings_table(database_url: str, table_name: str = None) -> str:
             CREATE INDEX IF NOT EXISTS knowledge_base_content_fts_idx
             ON knowledge_base USING GIN (to_tsvector('english', content));
             """
+            cursor.execute(create_kb_sql)
 
-            cursor.execute(create_sql)
+            # NEW: Create knowledge_sources tracking table
+            create_sources_sql = """
+            CREATE TABLE IF NOT EXISTS knowledge_sources (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                business_id UUID NOT NULL REFERENCES businesses(id),
+                source_url TEXT NOT NULL,
+                source_type VARCHAR NOT NULL CHECK (source_type IN ('website', 'pdf', 'document', 'text')),
+                category VARCHAR NOT NULL CHECK (category IN ('website', 'faq', 'policy', 'pricing', 'procedure', 'technical')),
+                description TEXT,
+                crawl_internal BOOLEAN DEFAULT true,
+                status VARCHAR NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'loading', 'loaded', 'failed', 'inactive')),
+                last_loaded_at TIMESTAMPTZ,
+                error_message TEXT,
+                entry_count INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMPTZ DEFAULT now(),
+                updated_at TIMESTAMPTZ DEFAULT now(),
+                UNIQUE(business_id, source_url)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_sources_business
+                ON knowledge_sources(business_id, is_active);
+            CREATE INDEX IF NOT EXISTS idx_knowledge_sources_status
+                ON knowledge_sources(business_id, status);
+            CREATE INDEX IF NOT EXISTS idx_knowledge_sources_url
+                ON knowledge_sources(source_url);
+            """
+
+            cursor.execute(create_sources_sql)
+            conn.commit()
+            print("✅ Created knowledge_sources tracking table")
+
+    print(f"✅ Created table: {table_name}")
+    return table_name
+
+
+def infer_source_type(source_url: str) -> str:
+    """Detect source type from URL/path"""
+    source_lower = source_url.lower()
+
+    if source_lower.endswith('.pdf'):
+        return 'pdf'
+    elif source_lower.startswith('http://') or source_lower.startswith('https://'):
+        return 'website'
+    elif source_lower.endswith(('.doc', '.docx')):
+        return 'document'
+    else:
+        return 'text'
+
+
+def create_or_update_source(
+    database_url: str,
+    business_id: str,
+    source_url: str,
+    category: str,
+    source_type: str = None,
+    crawl_internal: bool = True,
+    description: str = None
+) -> str:
+    """
+    Create or update knowledge source record
+    Returns source_id
+    """
+    if not source_type:
+        source_type = infer_source_type(source_url)
+
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        with conn.cursor() as cursor:
+            # Try to find existing source
+            cursor.execute(
+                """
+                SELECT id, status FROM knowledge_sources
+                WHERE business_id = %s::uuid AND source_url = %s
+                """,
+                (business_id, source_url)
+            )
+            existing = cursor.fetchone()
+
+            if existing:
+                # Update existing source
+                cursor.execute(
+                    """
+                    UPDATE knowledge_sources
+                    SET status = 'loading',
+                        category = %s,
+                        source_type = %s,
+                        crawl_internal = %s,
+                        description = COALESCE(%s, description),
+                        updated_at = now()
+                    WHERE id = %s
+                    RETURNING id
+                    """,
+                    (category, source_type, crawl_internal, description, existing['id'])
+                )
+                conn.commit()
+                logger.info(f"📝 Updated existing source: {source_url}")
+                return str(existing['id'])
+            else:
+                # Create new source
+                cursor.execute(
+                    """
+                    INSERT INTO knowledge_sources (
+                        business_id, source_url, source_type, category,
+                        crawl_internal, description, status
+                    )
+                    VALUES (%s::uuid, %s, %s, %s, %s, %s, 'loading')
+                    RETURNING id
+                    """,
+                    (business_id, source_url, source_type, category, crawl_internal, description)
+                )
+                result = cursor.fetchone()
+                conn.commit()
+                logger.info(f"➕ Created new source: {source_url}")
+                return str(result['id'])
+
+
+def mark_source_loaded(
+    database_url: str,
+    source_id: str,
+    entry_count: int,
+    error_message: str = None
+):
+    """Mark source as successfully loaded or failed"""
+    status = 'failed' if error_message else 'loaded'
+
+    with psycopg.connect(database_url) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE knowledge_sources
+                SET status = %s,
+                    last_loaded_at = now(),
+                    entry_count = %s,
+                    error_message = %s,
+                    updated_at = now()
+                WHERE id = %s::uuid
+                """,
+                (status, entry_count, error_message, source_id)
+            )
             conn.commit()
 
-    print(f"✅ Created table: knowledge_base")
-    return "knowledge_base"
+    if error_message:
+        logger.error(f"❌ Source failed: {error_message}")
+    else:
+        logger.info(f"✅ Source loaded: {entry_count} entries")
 
 
-def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, openai_api_key: str, business_id: str, category: str = "website") -> int:
-    """Generate embeddings and store chunks in knowledge_base table"""
+def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, openai_api_key: str, business_id: str, category: str = "website", source_id: str = None, source_url: str = None) -> int:
+    """
+    Generate embeddings and store chunks in knowledge_base table
+    Now includes source tracking in metadata
+    """
     import os
 
     # Validate required business_id
@@ -79,6 +229,10 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
 
     print(f"🏢 Using business_id: {business_id}")
     print(f"📂 Category: {category}")
+    if source_id:
+        print(f"🔗 Source ID: {source_id}")
+    if source_url:
+        print(f"🌐 Source URL: {source_url}")
 
     chunk_data = []
     total_chunks = len(chunks)
@@ -103,8 +257,10 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
             # Truncate title to 255 characters max
             title = title[:255] if title else "Untitled Document"
 
-            # Extract metadata
+            # Build metadata WITH source tracking
             metadata = {
+                "source_url": source_url,  # NEW: Track source URL
+                "source_id": source_id,    # NEW: Link to knowledge_sources table
                 "filename": chunk.meta.origin.filename if chunk.meta and chunk.meta.origin else "unknown",
                 "page_numbers": [
                     page_no
@@ -118,6 +274,9 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
                     )
                 ] if chunk.meta and chunk.meta.doc_items else None,
                 "original_title": chunk.meta.headings[0] if chunk.meta and chunk.meta.headings else None,
+                "chunk_index": i,                # NEW: Track chunk position
+                "total_chunks": total_chunks,    # NEW: Total chunks from this source
+                "loaded_at": time.time()         # NEW: When this was loaded
             }
 
             chunk_data.append((business_id, category, title, chunk.text, embedding, json.dumps(metadata)))
