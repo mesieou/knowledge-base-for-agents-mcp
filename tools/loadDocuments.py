@@ -6,6 +6,8 @@ import logging
 import sys
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
+import psycopg
+from psycopg.rows import dict_row
 
 from processing import extract_documents, chunk_documents, create_embeddings_table, embed_and_store_chunks
 from processing.embedding import infer_source_type, create_or_update_source, mark_source_loaded
@@ -130,6 +132,7 @@ def load_documents(
             logger.info(f"✅ Stored {row_count} chunks")
 
             # Step 5: Mark source as successfully loaded
+            logger.info(f"🔧 DEBUG: About to mark source loaded with row_count={row_count}")
             mark_source_loaded(
                 database_url=database_url,
                 source_id=source_id,

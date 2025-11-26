@@ -41,6 +41,7 @@ def create_embeddings_table(database_url: str, table_name: str = "knowledge_base
                 content TEXT NOT NULL,
                 embedding vector(1536),
                 metadata JSONB,
+                source_id UUID REFERENCES knowledge_sources(id) ON DELETE CASCADE,
                 is_active BOOLEAN DEFAULT true,
                 created_at TIMESTAMPTZ DEFAULT now(),
                 updated_at TIMESTAMPTZ DEFAULT now()
@@ -57,6 +58,15 @@ def create_embeddings_table(database_url: str, table_name: str = "knowledge_base
 
             CREATE INDEX IF NOT EXISTS knowledge_base_content_fts_idx
             ON knowledge_base USING GIN (to_tsvector('english', content));
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_base_source
+            ON knowledge_base(source_id);
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_base_business_source
+            ON knowledge_base(business_id, source_id)
+            WHERE is_active = true;
+
+            COMMENT ON COLUMN knowledge_base.source_id IS 'Foreign key to knowledge_sources table. Entries auto-delete when source is deleted (CASCADE).';
             """
             cursor.execute(create_kb_sql)
 
@@ -186,6 +196,9 @@ def mark_source_loaded(
     """Mark source as successfully loaded or failed"""
     status = 'failed' if error_message else 'loaded'
 
+    # Debug logging
+    logger.info(f"🔧 DEBUG: Updating source {source_id} with entry_count={entry_count}, status={status}")
+
     with psycopg.connect(database_url, autocommit=False) as conn:
         with conn.cursor() as cursor:
             cursor.execute(
@@ -200,7 +213,23 @@ def mark_source_loaded(
                 """,
                 (status, entry_count, error_message, source_id)
             )
+
+            # Check how many rows were affected
+            rows_affected = cursor.rowcount
+            logger.info(f"🔧 DEBUG: Updated {rows_affected} rows in knowledge_sources")
+
             conn.commit()
+
+            # Verify the update worked
+            cursor.execute(
+                "SELECT entry_count, status FROM knowledge_sources WHERE id = %s::uuid",
+                (source_id,)
+            )
+            result = cursor.fetchone()
+            if result:
+                logger.info(f"🔧 DEBUG: After update - entry_count={result[0]}, status={result[1]}")
+            else:
+                logger.error(f"🔧 DEBUG: No record found for source_id={source_id}")
 
     if error_message:
         logger.error(f"❌ Source failed: {error_message}")
@@ -279,7 +308,7 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
                 "loaded_at": time.time()         # NEW: When this was loaded
             }
 
-            chunk_data.append((business_id, category, title, chunk.text, embedding, json.dumps(metadata)))
+            chunk_data.append((business_id, category, title, chunk.text, embedding, json.dumps(metadata), source_id))
 
             # Progress tracking
             if i % 5 == 0 or i == total_chunks:
@@ -296,8 +325,8 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
         with psycopg.connect(database_url, autocommit=False) as conn:
             with conn.cursor() as cursor:
                 insert_sql = """
-                INSERT INTO knowledge_base (business_id, category, title, content, embedding, metadata)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO knowledge_base (business_id, category, title, content, embedding, metadata, source_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """
                 # Use execute() in loop instead of executemany() to avoid prepared statements
                 for chunk in chunk_data:
