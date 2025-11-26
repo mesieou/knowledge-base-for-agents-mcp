@@ -21,7 +21,7 @@ def create_embeddings_table(database_url: str, table_name: str = "knowledge_base
     """
     table_name = "knowledge_base"
 
-    with psycopg.connect(database_url) as conn:
+    with psycopg.connect(database_url, autocommit=False) as conn:
         with conn.cursor() as cursor:
             # Enable pgvector extension
             try:
@@ -127,7 +127,7 @@ def create_or_update_source(
     if not source_type:
         source_type = infer_source_type(source_url)
 
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(database_url, row_factory=dict_row, autocommit=False) as conn:
         with conn.cursor() as cursor:
             # Try to find existing source
             cursor.execute(
@@ -186,7 +186,7 @@ def mark_source_loaded(
     """Mark source as successfully loaded or failed"""
     status = 'failed' if error_message else 'loaded'
 
-    with psycopg.connect(database_url) as conn:
+    with psycopg.connect(database_url, autocommit=False) as conn:
         with conn.cursor() as cursor:
             cursor.execute(
                 """
@@ -292,13 +292,16 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
 
     # Insert chunks
     if chunk_data:
-        with psycopg.connect(database_url) as conn:
+        # Use fresh connection to avoid prepared statement conflicts
+        with psycopg.connect(database_url, autocommit=False) as conn:
             with conn.cursor() as cursor:
                 insert_sql = """
                 INSERT INTO knowledge_base (business_id, category, title, content, embedding, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """
-                cursor.executemany(insert_sql, chunk_data)
+                # Use execute() in loop instead of executemany() to avoid prepared statements
+                for chunk in chunk_data:
+                    cursor.execute(insert_sql, chunk)
                 conn.commit()
                 print(f"✅ Stored {len(chunk_data)} chunks with embeddings")
 
