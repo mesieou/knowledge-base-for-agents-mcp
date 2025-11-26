@@ -159,6 +159,9 @@ def create_or_update_source(
                         source_type = %s,
                         crawl_internal = %s,
                         description = COALESCE(%s, description),
+                        entry_count = 0,
+                        error_message = NULL,
+                        is_active = true,
                         updated_at = now()
                     WHERE id = %s
                     RETURNING id
@@ -174,9 +177,10 @@ def create_or_update_source(
                     """
                     INSERT INTO knowledge_sources (
                         business_id, source_url, source_type, category,
-                        crawl_internal, description, status
+                        crawl_internal, description, status, entry_count,
+                        error_message, is_active
                     )
-                    VALUES (%s::uuid, %s, %s, %s, %s, %s, 'loading')
+                    VALUES (%s::uuid, %s, %s, %s, %s, %s, 'loading', 0, NULL, true)
                     RETURNING id
                     """,
                     (business_id, source_url, source_type, category, crawl_internal, description)
@@ -196,11 +200,17 @@ def mark_source_loaded(
     """Mark source as successfully loaded or failed"""
     status = 'failed' if error_message else 'loaded'
 
-    # Debug logging
-    logger.info(f"🔧 DEBUG: Updating source {source_id} with entry_count={entry_count}, status={status}")
-
     with psycopg.connect(database_url, autocommit=False) as conn:
         with conn.cursor() as cursor:
+            # First verify the record exists
+            cursor.execute(
+                "SELECT id, entry_count FROM knowledge_sources WHERE id = %s",
+                (source_id,)
+            )
+            before_update = cursor.fetchone()
+            logger.info(f"🔧 Before update: {before_update}")
+
+            # Perform the update
             cursor.execute(
                 """
                 UPDATE knowledge_sources
@@ -209,27 +219,23 @@ def mark_source_loaded(
                     entry_count = %s,
                     error_message = %s,
                     updated_at = now()
-                WHERE id = %s::uuid
+                WHERE id = %s
                 """,
                 (status, entry_count, error_message, source_id)
             )
 
-            # Check how many rows were affected
-            rows_affected = cursor.rowcount
-            logger.info(f"🔧 DEBUG: Updated {rows_affected} rows in knowledge_sources")
+            rows_updated = cursor.rowcount
+            logger.info(f"🔧 Rows updated: {rows_updated}")
 
             conn.commit()
 
-            # Verify the update worked
+            # Verify after update
             cursor.execute(
-                "SELECT entry_count, status FROM knowledge_sources WHERE id = %s::uuid",
+                "SELECT id, entry_count, status FROM knowledge_sources WHERE id = %s",
                 (source_id,)
             )
-            result = cursor.fetchone()
-            if result:
-                logger.info(f"🔧 DEBUG: After update - entry_count={result[0]}, status={result[1]}")
-            else:
-                logger.error(f"🔧 DEBUG: No record found for source_id={source_id}")
+            after_update = cursor.fetchone()
+            logger.info(f"🔧 After update: {after_update}")
 
     if error_message:
         logger.error(f"❌ Source failed: {error_message}")

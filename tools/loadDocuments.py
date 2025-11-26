@@ -132,7 +132,6 @@ def load_documents(
             logger.info(f"✅ Stored {row_count} chunks")
 
             # Step 5: Mark source as successfully loaded
-            logger.info(f"🔧 DEBUG: About to mark source loaded with row_count={row_count}")
             mark_source_loaded(
                 database_url=database_url,
                 source_id=source_id,
