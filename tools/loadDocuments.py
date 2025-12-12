@@ -241,65 +241,76 @@ def load_documents(
 
 def _generate_embeddings(chunks: List, openai_client, business_id: str, category: str, source_url: str) -> List[tuple]:
     """
-    Generate embeddings for chunks WITHOUT touching the database.
-    Returns list of tuples ready for database insertion.
+    Generate embeddings for chunks in BATCHES - much faster than individual API calls.
+    Returns list of dicts ready for database insertion.
     """
     import json
     import time
 
     chunk_data = []
     total_chunks = len(chunks)
+    BATCH_SIZE = 100  # OpenAI supports up to 2048, but 100 is safe for token limits
 
-    for i, chunk in enumerate(chunks, 1):
-        # Generate embedding
+    logger.info(f"📊 Processing {total_chunks} chunks in batches of {BATCH_SIZE}...")
+
+    # Process in batches for faster API calls
+    for batch_start in range(0, total_chunks, BATCH_SIZE):
+        batch_end = min(batch_start + BATCH_SIZE, total_chunks)
+        batch_chunks = chunks[batch_start:batch_end]
+
+        # Batch API call - sends multiple texts in one request
+        texts = [chunk.text for chunk in batch_chunks]
         embedding_response = openai_client.embeddings.create(
             model="text-embedding-3-small",
-            input=chunk.text
+            input=texts
         )
-        embedding = embedding_response.data[0].embedding
 
-        # Extract title with fallback logic
-        title = "Untitled Document"
-        if chunk.meta and chunk.meta.headings:
-            title = chunk.meta.headings[0]
-        elif chunk.meta and chunk.meta.origin and chunk.meta.origin.filename:
-            title = chunk.meta.origin.filename
+        # Process batch results
+        for idx, (chunk, emb_data) in enumerate(zip(batch_chunks, embedding_response.data)):
+            global_idx = batch_start + idx + 1
+            embedding = emb_data.embedding
 
-        # Truncate title to 255 characters max
-        title = title[:255] if title else "Untitled Document"
+            # Extract title with fallback logic
+            title = "Untitled Document"
+            if chunk.meta and chunk.meta.headings:
+                title = chunk.meta.headings[0]
+            elif chunk.meta and chunk.meta.origin and chunk.meta.origin.filename:
+                title = chunk.meta.origin.filename
 
-        # Build metadata
-        metadata = {
-            "source_url": source_url,
-            "filename": chunk.meta.origin.filename if chunk.meta and chunk.meta.origin else "unknown",
-            "page_numbers": [
-                page_no
-                for page_no in sorted(
-                    set(
-                        prov.page_no
-                        for item in chunk.meta.doc_items
-                        for prov in item.prov
-                        if hasattr(prov, 'page_no') and prov.page_no is not None
+            # Truncate title to 255 characters max
+            title = title[:255] if title else "Untitled Document"
+
+            # Build metadata
+            metadata = {
+                "source_url": source_url,
+                "filename": chunk.meta.origin.filename if chunk.meta and chunk.meta.origin else "unknown",
+                "page_numbers": [
+                    page_no
+                    for page_no in sorted(
+                        set(
+                            prov.page_no
+                            for item in chunk.meta.doc_items
+                            for prov in item.prov
+                            if hasattr(prov, 'page_no') and prov.page_no is not None
+                        )
                     )
-                )
-            ] if chunk.meta and chunk.meta.doc_items else None,
-            "original_title": chunk.meta.headings[0] if chunk.meta and chunk.meta.headings else None,
-            "chunk_index": i,
-            "total_chunks": total_chunks,
-            "loaded_at": time.time()
-        }
+                ] if chunk.meta and chunk.meta.doc_items else None,
+                "original_title": chunk.meta.headings[0] if chunk.meta and chunk.meta.headings else None,
+                "chunk_index": global_idx,
+                "total_chunks": total_chunks,
+                "loaded_at": time.time()
+            }
 
-        chunk_data.append({
-            "title": title,
-            "content": chunk.text,
-            "embedding": embedding,
-            "metadata": json.dumps(metadata)
-        })
+            chunk_data.append({
+                "title": title,
+                "content": chunk.text,
+                "embedding": embedding,
+                "metadata": json.dumps(metadata)
+            })
 
-        # Progress tracking
-        if i % 5 == 0 or i == total_chunks:
-            progress = (i / total_chunks) * 100
-            logger.info(f"📈 Embedding progress: {i}/{total_chunks} ({progress:.1f}%)")
+        # Progress tracking per batch
+        progress = (batch_end / total_chunks) * 100
+        logger.info(f"📈 Embedding progress: {batch_end}/{total_chunks} ({progress:.1f}%)")
 
     return chunk_data
 
