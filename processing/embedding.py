@@ -243,6 +243,132 @@ def mark_source_loaded(
         logger.info(f"✅ Source loaded: {entry_count} entries")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRANSACTIONAL VERSIONS - Use existing cursor, don't commit
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_or_update_source_transactional(
+    cursor,
+    business_id: str,
+    source_url: str,
+    category: str,
+    source_type: str = None,
+    crawl_internal: bool = True,
+    description: str = None
+) -> str:
+    """
+    Create or update knowledge source record WITHIN an existing transaction.
+    Does NOT commit - caller is responsible for transaction management.
+    Returns source_id
+    """
+    if not source_type:
+        source_type = infer_source_type(source_url)
+
+    # Try to find existing source
+    cursor.execute(
+        """
+        SELECT id, status FROM knowledge_sources
+        WHERE business_id = %s::uuid AND source_url = %s
+        """,
+        (business_id, source_url)
+    )
+    existing = cursor.fetchone()
+
+    if existing:
+        # Update existing source
+        cursor.execute(
+            """
+            UPDATE knowledge_sources
+            SET status = 'loading',
+                category = %s,
+                source_type = %s,
+                crawl_internal = %s,
+                description = COALESCE(%s, description),
+                entry_count = 0,
+                error_message = NULL,
+                is_active = true,
+                updated_at = now()
+            WHERE id = %s
+            RETURNING id
+            """,
+            (category, source_type, crawl_internal, description, existing['id'])
+        )
+        # NOTE: No commit here - transaction managed by caller
+        logger.info(f"📝 Updated existing source: {source_url}")
+        return str(existing['id'])
+    else:
+        # Create new source
+        cursor.execute(
+            """
+            INSERT INTO knowledge_sources (
+                business_id, source_url, source_type, category,
+                crawl_internal, description, status, entry_count,
+                error_message, is_active
+            )
+            VALUES (%s::uuid, %s, %s, %s, %s, %s, 'loading', 0, NULL, true)
+            RETURNING id
+            """,
+            (business_id, source_url, source_type, category, crawl_internal, description)
+        )
+        result = cursor.fetchone()
+        # NOTE: No commit here - transaction managed by caller
+        logger.info(f"➕ Created new source: {source_url}")
+        return str(result['id'])
+
+
+def embed_and_store_chunks_transactional(
+    cursor,
+    chunk_data: List[Dict],
+    business_id: str,
+    category: str,
+    source_id: str,
+    source_url: str
+) -> int:
+    """
+    Store pre-generated embeddings WITHIN an existing transaction.
+    Does NOT commit - caller is responsible for transaction management.
+
+    Args:
+        cursor: Active database cursor
+        chunk_data: List of dicts with 'title', 'content', 'embedding', 'metadata'
+        business_id: UUID of the business
+        category: Category for the knowledge base entries
+        source_id: UUID of the source record
+        source_url: URL of the source (for metadata)
+
+    Returns:
+        Number of chunks stored
+    """
+    if not chunk_data:
+        return 0
+
+    # Validate business_id
+    try:
+        uuid.UUID(business_id)
+    except ValueError:
+        raise ValueError(f"business_id must be a valid UUID format, got: {business_id}")
+
+    insert_sql = """
+        INSERT INTO knowledge_base (business_id, category, title, content, embedding, metadata, source_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+
+    for chunk in chunk_data:
+        cursor.execute(insert_sql, (
+            business_id,
+            category,
+            chunk['title'],
+            chunk['content'],
+            chunk['embedding'],
+            chunk['metadata'],
+            source_id
+        ))
+
+    # NOTE: No commit here - transaction managed by caller
+    logger.info(f"📦 Prepared {len(chunk_data)} chunks for insertion")
+    return len(chunk_data)
+
+
 def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, openai_api_key: str, business_id: str, category: str = "website", source_id: str = None, source_url: str = None) -> int:
     """
     Generate embeddings and store chunks in knowledge_base table

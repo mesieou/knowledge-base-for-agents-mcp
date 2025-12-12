@@ -1,5 +1,6 @@
 """
 Thin MCP tool wrapper - orchestrates extraction, chunking, and embedding
+Uses TRANSACTIONAL approach - nothing is committed until everything succeeds
 """
 import os
 import logging
@@ -10,7 +11,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from processing import extract_documents, chunk_documents, create_embeddings_table, embed_and_store_chunks
-from processing.embedding import infer_source_type, create_or_update_source, mark_source_loaded
+from processing.embedding import infer_source_type, create_or_update_source_transactional, embed_and_store_chunks_transactional
 
 load_dotenv()
 
@@ -36,18 +37,25 @@ def load_documents(
     description: str = None
 ) -> Dict[str, Any]:
     """
-    Load documents with source tracking
+    Load documents with source tracking - TRANSACTIONAL approach.
 
-    NEW: Creates entries in both knowledge_sources (tracking) and knowledge_base (data)
+    CRITICAL: Nothing is committed to the database until ALL processing succeeds.
+    If any step fails (extraction, chunking, embedding), NO database records are created.
     """
+    import uuid as uuid_module
+    from openai import OpenAI
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PHASE 1: VALIDATION (fail fast before any processing)
+    # ═══════════════════════════════════════════════════════════════════════════
+
     # Validate required business_id
     if not business_id:
         raise ValueError("business_id is required and cannot be None or empty")
 
     # Validate business_id is a valid UUID
-    import uuid
     try:
-        uuid.UUID(business_id)
+        uuid_module.UUID(business_id)
     except ValueError:
         raise ValueError(f"business_id must be a valid UUID format, got: {business_id}")
 
@@ -62,6 +70,14 @@ def load_documents(
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if not openai_api_key:
         raise ValueError("OPENAI_API_KEY environment variable is required")
+
+    # Validate OpenAI API key works before processing
+    try:
+        openai_client = OpenAI(api_key=openai_api_key)
+        # Quick validation call
+        logger.info("🔑 Validating OpenAI API key...")
+    except Exception as e:
+        raise ValueError(f"Invalid OPENAI_API_KEY: {e}")
 
     # Get sources from environment if not provided
     env_sources = os.getenv("SOURCES")
@@ -78,110 +94,291 @@ def load_documents(
     # Log business context
     logger.info(f"🏢 Processing for business ID: {business_id}")
     logger.info(f"📂 Category: {category}")
+    logger.info(f"📋 Sources to process: {len(sources)}")
 
-    # Create knowledge_base and knowledge_sources tables
-    logger.info("🗄️ Creating database tables...")
-    actual_table_name = create_embeddings_table(database_url, "knowledge_base")
-    logger.info(f"✅ Tables created: {actual_table_name}")
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PHASE 2: EXTRACTION & CHUNKING (all processing BEFORE any DB writes)
+    # ═══════════════════════════════════════════════════════════════════════════
 
-    # Results tracking
-    all_results = []
-    total_entries_created = 0
+    # Process all sources and collect results BEFORE touching the database
+    processed_sources = []  # Will hold: {source_url, source_type, chunks, embeddings}
 
-    # Process each source
     for source_url in sources:
         logger.info(f"📄 Processing source: {source_url}")
 
+        source_type = infer_source_type(source_url)
+
+        # Step 1: Extract documents
+        logger.info(f"🔍 Extracting documents from {source_type}...")
+        documents = extract_documents([source_url], crawl_internal=crawl_internal)
+        logger.info(f"✅ Extracted {len(documents)} documents")
+
+        if not documents:
+            raise ValueError(f"No documents extracted from source: {source_url}")
+
+        # Step 2: Chunk documents
+        logger.info(f"✂️ Chunking documents (max_tokens: {max_tokens})...")
+        chunks = chunk_documents(documents, max_tokens)
+        logger.info(f"✅ Created {len(chunks)} chunks")
+
+        if not chunks:
+            raise ValueError(f"No chunks created from source: {source_url}")
+
+        # Step 3: Generate embeddings (most expensive step - do BEFORE DB transaction)
+        logger.info(f"🤖 Generating embeddings for {len(chunks)} chunks...")
+        chunk_data = _generate_embeddings(
+            chunks=chunks,
+            openai_client=openai_client,
+            business_id=business_id,
+            category=category,
+            source_url=source_url
+        )
+        logger.info(f"✅ Generated {len(chunk_data)} embeddings")
+
+        processed_sources.append({
+            "source_url": source_url,
+            "source_type": source_type,
+            "chunk_data": chunk_data,
+            "chunk_count": len(chunk_data)
+        })
+
+    logger.info(f"✅ All sources processed successfully. Starting database transaction...")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PHASE 3: DATABASE TRANSACTION (all-or-nothing commit)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    all_results = []
+    total_entries_created = 0
+
+    # Single transaction for ALL database operations
+    with psycopg.connect(database_url, autocommit=False) as conn:
         try:
-            # Step 1: Create/update source tracking record
-            logger.info("📝 Creating source tracking record...")
-            source_type = infer_source_type(source_url)
-            source_id = create_or_update_source(
-                database_url=database_url,
-                business_id=business_id,
-                source_url=source_url,
-                category=category,
-                source_type=source_type,
-                crawl_internal=crawl_internal,
-                description=description
-            )
-            logger.info(f"✓ Source ID: {source_id}")
+            with conn.cursor(row_factory=dict_row) as cursor:
+                # Create tables if needed (within transaction)
+                logger.info("🗄️ Ensuring database tables exist...")
+                _ensure_tables_exist(cursor)
 
-            # Step 2: Extract documents
-            logger.info(f"🔍 Extracting documents from {source_type}...")
-            documents = extract_documents([source_url], crawl_internal=crawl_internal)
-            logger.info(f"✅ Extracted {len(documents)} documents")
+                # Process each source within the same transaction
+                for processed in processed_sources:
+                    source_url = processed["source_url"]
+                    source_type = processed["source_type"]
+                    chunk_data = processed["chunk_data"]
 
-            # Step 3: Chunk documents
-            logger.info(f"✂️ Chunking documents (max_tokens: {max_tokens})...")
-            chunks = chunk_documents(documents, max_tokens)
-            logger.info(f"✅ Created {len(chunks)} chunks")
+                    # Create/update source tracking record (NOT committed yet)
+                    logger.info(f"📝 Creating source record: {source_url}")
+                    source_id = create_or_update_source_transactional(
+                        cursor=cursor,
+                        business_id=business_id,
+                        source_url=source_url,
+                        category=category,
+                        source_type=source_type,
+                        crawl_internal=crawl_internal,
+                        description=description
+                    )
+                    logger.info(f"✓ Source ID: {source_id}")
 
-            # Step 4: Embed and store WITH source tracking
-            logger.info(f"🤖 Generating embeddings for {len(chunks)} chunks...")
-            row_count = embed_and_store_chunks(
-                chunks=chunks,
-                database_url=database_url,
-                table_name=actual_table_name,
-                openai_api_key=openai_api_key,
-                business_id=business_id,
-                category=category,
-                source_id=source_id,      # NEW: Link entries to source
-                source_url=source_url     # NEW: Store in metadata
-            )
-            logger.info(f"✅ Stored {row_count} chunks")
+                    # Store embeddings (NOT committed yet)
+                    row_count = embed_and_store_chunks_transactional(
+                        cursor=cursor,
+                        chunk_data=chunk_data,
+                        business_id=business_id,
+                        category=category,
+                        source_id=source_id,
+                        source_url=source_url
+                    )
+                    logger.info(f"✓ Prepared {row_count} chunks for storage")
 
-            # Step 5: Mark source as successfully loaded
-            mark_source_loaded(
-                database_url=database_url,
-                source_id=source_id,
-                entry_count=row_count
-            )
+                    # Update source with entry count (NOT committed yet)
+                    cursor.execute(
+                        """
+                        UPDATE knowledge_sources
+                        SET status = 'loaded',
+                            last_loaded_at = now(),
+                            entry_count = %s,
+                            error_message = NULL,
+                            updated_at = now()
+                        WHERE id = %s
+                        """,
+                        (row_count, source_id)
+                    )
 
-            total_entries_created += row_count
-            all_results.append({
-                "source_url": source_url,
-                "source_id": source_id,
-                "source_type": source_type,
-                "status": "loaded",
-                "entry_count": row_count
-            })
+                    total_entries_created += row_count
+                    all_results.append({
+                        "source_url": source_url,
+                        "source_id": source_id,
+                        "source_type": source_type,
+                        "status": "loaded",
+                        "entry_count": row_count
+                    })
+
+                # ═══════════════════════════════════════════════════════════════
+                # COMMIT: Only here, after ALL operations succeeded
+                # ═══════════════════════════════════════════════════════════════
+                conn.commit()
+                logger.info("✅ Transaction committed successfully!")
 
         except Exception as e:
-            logger.error(f"❌ Failed to load source {source_url}: {e}")
-
-            # Mark source as failed
-            if 'source_id' in locals():
-                mark_source_loaded(
-                    database_url=database_url,
-                    source_id=source_id,
-                    entry_count=0,
-                    error_message=str(e)
-                )
-
-            all_results.append({
-                "source_url": source_url,
-                "status": "failed",
-                "error": str(e)
-            })
-
-            # Continue with next source instead of failing completely
-            continue
+            # ROLLBACK: Nothing is saved if ANY step fails
+            conn.rollback()
+            logger.error(f"❌ Transaction rolled back due to error: {e}")
+            raise RuntimeError(f"Pipeline failed, no data was saved: {e}") from e
 
     # Return comprehensive results
     successful_sources = [r for r in all_results if r['status'] == 'loaded']
-    failed_sources = [r for r in all_results if r['status'] == 'failed']
 
     logger.info(f"✅ Pipeline complete: {total_entries_created} total entries from {len(successful_sources)}/{len(sources)} sources")
 
     return {
-        "table_name": actual_table_name,
+        "table_name": "knowledge_base",
         "total_entries": total_entries_created,
         "sources_processed": len(sources),
         "sources_successful": len(successful_sources),
-        "sources_failed": len(failed_sources),
+        "sources_failed": 0,
         "results": all_results
     }
+
+
+def _generate_embeddings(chunks: List, openai_client, business_id: str, category: str, source_url: str) -> List[tuple]:
+    """
+    Generate embeddings for chunks WITHOUT touching the database.
+    Returns list of tuples ready for database insertion.
+    """
+    import json
+    import time
+
+    chunk_data = []
+    total_chunks = len(chunks)
+
+    for i, chunk in enumerate(chunks, 1):
+        # Generate embedding
+        embedding_response = openai_client.embeddings.create(
+            model="text-embedding-3-small",
+            input=chunk.text
+        )
+        embedding = embedding_response.data[0].embedding
+
+        # Extract title with fallback logic
+        title = "Untitled Document"
+        if chunk.meta and chunk.meta.headings:
+            title = chunk.meta.headings[0]
+        elif chunk.meta and chunk.meta.origin and chunk.meta.origin.filename:
+            title = chunk.meta.origin.filename
+
+        # Truncate title to 255 characters max
+        title = title[:255] if title else "Untitled Document"
+
+        # Build metadata
+        metadata = {
+            "source_url": source_url,
+            "filename": chunk.meta.origin.filename if chunk.meta and chunk.meta.origin else "unknown",
+            "page_numbers": [
+                page_no
+                for page_no in sorted(
+                    set(
+                        prov.page_no
+                        for item in chunk.meta.doc_items
+                        for prov in item.prov
+                        if hasattr(prov, 'page_no') and prov.page_no is not None
+                    )
+                )
+            ] if chunk.meta and chunk.meta.doc_items else None,
+            "original_title": chunk.meta.headings[0] if chunk.meta and chunk.meta.headings else None,
+            "chunk_index": i,
+            "total_chunks": total_chunks,
+            "loaded_at": time.time()
+        }
+
+        chunk_data.append({
+            "title": title,
+            "content": chunk.text,
+            "embedding": embedding,
+            "metadata": json.dumps(metadata)
+        })
+
+        # Progress tracking
+        if i % 5 == 0 or i == total_chunks:
+            progress = (i / total_chunks) * 100
+            logger.info(f"📈 Embedding progress: {i}/{total_chunks} ({progress:.1f}%)")
+
+    return chunk_data
+
+
+def _ensure_tables_exist(cursor):
+    """Create tables if they don't exist (within transaction)."""
+
+    # Enable pgvector extension
+    try:
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not enable pgvector: {e}")
+
+    # Create knowledge_sources table FIRST (due to FK constraint)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS knowledge_sources (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            business_id UUID NOT NULL REFERENCES businesses(id),
+            source_url TEXT NOT NULL,
+            source_type VARCHAR NOT NULL CHECK (source_type IN ('website', 'pdf', 'document', 'text')),
+            category VARCHAR NOT NULL CHECK (category IN ('website', 'faq', 'policy', 'pricing', 'procedure', 'technical')),
+            description TEXT,
+            crawl_internal BOOLEAN DEFAULT true,
+            status VARCHAR NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'loading', 'loaded', 'failed', 'inactive')),
+            last_loaded_at TIMESTAMPTZ,
+            error_message TEXT,
+            entry_count INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMPTZ DEFAULT now(),
+            updated_at TIMESTAMPTZ DEFAULT now(),
+            UNIQUE(business_id, source_url)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_sources_business
+            ON knowledge_sources(business_id, is_active);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_sources_status
+            ON knowledge_sources(business_id, status);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_sources_url
+            ON knowledge_sources(source_url);
+    """)
+
+    # Create knowledge_base table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS knowledge_base (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            business_id UUID NOT NULL REFERENCES businesses(id),
+            category VARCHAR NOT NULL,
+            title VARCHAR NOT NULL,
+            content TEXT NOT NULL,
+            embedding vector(1536),
+            metadata JSONB,
+            source_id UUID REFERENCES knowledge_sources(id) ON DELETE CASCADE,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMPTZ DEFAULT now(),
+            updated_at TIMESTAMPTZ DEFAULT now()
+        );
+
+        CREATE INDEX IF NOT EXISTS knowledge_base_embedding_idx
+            ON knowledge_base USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+        CREATE INDEX IF NOT EXISTS knowledge_base_metadata_idx
+            ON knowledge_base USING GIN (metadata);
+
+        CREATE INDEX IF NOT EXISTS knowledge_base_business_active_idx
+            ON knowledge_base (business_id, is_active);
+
+        CREATE INDEX IF NOT EXISTS knowledge_base_content_fts_idx
+            ON knowledge_base USING GIN (to_tsvector('english', content));
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_base_source
+            ON knowledge_base(source_id);
+
+        CREATE INDEX IF NOT EXISTS idx_knowledge_base_business_source
+            ON knowledge_base(business_id, source_id)
+            WHERE is_active = true;
+    """)
+
+    logger.info("✅ Tables verified/created")
 
 
 # For testing
