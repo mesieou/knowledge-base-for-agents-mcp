@@ -32,7 +32,7 @@ def load_documents_tool(
     crawl_internal: bool = True,
     description: str = None
 ) -> Dict[str, Any]:
-    """Load and process documents into knowledge_base with source tracking.
+    """Load and process documents into knowledge_entries with source tracking.
 
     Args:
         sources: List of URLs or file paths to process
@@ -46,7 +46,7 @@ def load_documents_tool(
     Returns:
         Dict with comprehensive results including source tracking:
         {
-            "table_name": "knowledge_base",
+            "table_name": "knowledge_entries",
             "total_entries": int,
             "sources_processed": int,
             "sources_successful": int,
@@ -64,7 +64,7 @@ def load_documents_tool(
         }
     """
     try:
-        logger.info("🚀 Tool called - starting knowledge_base pipeline with source tracking")
+        logger.info("🚀 Tool called - starting knowledge_entries pipeline with source tracking")
 
         # Log received parameters
         logger.info(f"📊 Using provided database_url: {database_url[:50]}...")
@@ -76,7 +76,7 @@ def load_documents_tool(
         result = load_documents(
             business_id=business_id,
             sources=sources,
-            table_name="knowledge_base",
+            table_name="knowledge_entries",
             max_tokens=max_tokens,
             crawl_internal=crawl_internal,
             database_url=database_url,
@@ -88,7 +88,7 @@ def load_documents_tool(
     except Exception as e:
         logger.error(f"❌ Tool failed: {e}", exc_info=True)
         return {
-            "table_name": "knowledge_base",
+            "table_name": "knowledge_entries",
             "total_entries": 0,
             "sources_processed": 0,
             "sources_successful": 0,
@@ -104,7 +104,7 @@ def query_knowledge_tool(
     match_threshold: float = 0.7,
     match_count: int = 3
 ) -> Dict[str, Any]:
-    """Query knowledge_base table using vector similarity search.
+    """Query knowledge_entries table using vector similarity search.
 
     Args:
         question: The question to search for
@@ -115,11 +115,11 @@ def query_knowledge_tool(
     """
     try:
         logger.info(f"🔍 Query tool called - question: '{question}'")
-        logger.info(f"📊 Table: knowledge_base, Business: {business_id}")
+        logger.info(f"📊 Table: knowledge_entries, Business: {business_id}")
 
         result = query_knowledge_base(
             question=question,
-            table_name="knowledge_base",
+            table_name="knowledge_entries",
             database_url=database_url,
             business_id=business_id,
             match_threshold=match_threshold,

@@ -61,10 +61,10 @@ async def load_website_to_knowledge_base(
     server_url: str = "http://45.151.154.42:8000/mcp",
     max_tokens: int = 8191
 ):
-    """Load a website into the knowledge_base table with source tracking"""
+    """Load a website into the knowledge_entries table with source tracking"""
     print(f"🚀 Loading website: {website_url}")
     print(f"📊 Database: {database_url[:50]}...")
-    print(f"📋 Table: knowledge_base")
+    print(f"📋 Table: knowledge_entries")
     print(f"🏢 Business ID: {business_id}")
     print(f"📂 Category: {category}")
     if description:

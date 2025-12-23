@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 def load_documents(
     business_id: str,
     sources: Optional[List[str]] = None,
-    table_name: str = "knowledge_base",
+    table_name: str = "knowledge_entries",
     max_tokens: int = 8191,
     crawl_internal: bool = True,
     database_url: Optional[str] = None,
@@ -230,7 +230,7 @@ def load_documents(
     logger.info(f"✅ Pipeline complete: {total_entries_created} total entries from {len(successful_sources)}/{len(sources)} sources")
 
     return {
-        "table_name": "knowledge_base",
+        "table_name": "knowledge_entries",
         "total_entries": total_entries_created,
         "sources_processed": len(sources),
         "sources_successful": len(successful_sources),
@@ -353,9 +353,9 @@ def _ensure_tables_exist(cursor):
             ON knowledge_sources(source_url);
     """)
 
-    # Create knowledge_base table
+    # Create knowledge_entries table
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS knowledge_base (
+        CREATE TABLE IF NOT EXISTS knowledge_entries (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             business_id UUID NOT NULL REFERENCES businesses(id),
             category VARCHAR NOT NULL,
@@ -369,23 +369,23 @@ def _ensure_tables_exist(cursor):
             updated_at TIMESTAMPTZ DEFAULT now()
         );
 
-        CREATE INDEX IF NOT EXISTS knowledge_base_embedding_idx
-            ON knowledge_base USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+        CREATE INDEX IF NOT EXISTS knowledge_entries_embedding_idx
+            ON knowledge_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
-        CREATE INDEX IF NOT EXISTS knowledge_base_metadata_idx
-            ON knowledge_base USING GIN (metadata);
+        CREATE INDEX IF NOT EXISTS knowledge_entries_metadata_idx
+            ON knowledge_entries USING GIN (metadata);
 
-        CREATE INDEX IF NOT EXISTS knowledge_base_business_active_idx
-            ON knowledge_base (business_id, is_active);
+        CREATE INDEX IF NOT EXISTS knowledge_entries_business_active_idx
+            ON knowledge_entries (business_id, is_active);
 
-        CREATE INDEX IF NOT EXISTS knowledge_base_content_fts_idx
-            ON knowledge_base USING GIN (to_tsvector('english', content));
+        CREATE INDEX IF NOT EXISTS knowledge_entries_content_fts_idx
+            ON knowledge_entries USING GIN (to_tsvector('english', content));
 
-        CREATE INDEX IF NOT EXISTS idx_knowledge_base_source
-            ON knowledge_base(source_id);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_entries_source
+            ON knowledge_entries(source_id);
 
-        CREATE INDEX IF NOT EXISTS idx_knowledge_base_business_source
-            ON knowledge_base(business_id, source_id)
+        CREATE INDEX IF NOT EXISTS idx_knowledge_entries_business_source
+            ON knowledge_entries(business_id, source_id)
             WHERE is_active = true;
     """)
 

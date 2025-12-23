@@ -14,12 +14,12 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 
-def create_embeddings_table(database_url: str, table_name: str = "knowledge_base") -> str:
+def create_embeddings_table(database_url: str, table_name: str = "knowledge_entries") -> str:
     """
-    Create or verify knowledge_base table with pgvector support
+    Create or verify knowledge_entries table with pgvector support
     ALSO creates knowledge_sources tracking table
     """
-    table_name = "knowledge_base"
+    table_name = "knowledge_entries"
 
     with psycopg.connect(database_url, autocommit=False) as conn:
         with conn.cursor() as cursor:
@@ -31,9 +31,9 @@ def create_embeddings_table(database_url: str, table_name: str = "knowledge_base
             except psycopg.Error as e:
                 print(f"⚠️ Could not enable pgvector: {e}")
 
-            # Create knowledge_base table with proper schema
+            # Create knowledge_entries table with proper schema
             create_kb_sql = """
-            CREATE TABLE IF NOT EXISTS knowledge_base (
+            CREATE TABLE IF NOT EXISTS knowledge_entries (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 business_id UUID NOT NULL REFERENCES businesses(id),
                 category VARCHAR NOT NULL,
@@ -47,26 +47,26 @@ def create_embeddings_table(database_url: str, table_name: str = "knowledge_base
                 updated_at TIMESTAMPTZ DEFAULT now()
             );
 
-            CREATE INDEX IF NOT EXISTS knowledge_base_embedding_idx
-            ON knowledge_base USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+            CREATE INDEX IF NOT EXISTS knowledge_entries_embedding_idx
+            ON knowledge_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
-            CREATE INDEX IF NOT EXISTS knowledge_base_metadata_idx
-            ON knowledge_base USING GIN (metadata);
+            CREATE INDEX IF NOT EXISTS knowledge_entries_metadata_idx
+            ON knowledge_entries USING GIN (metadata);
 
-            CREATE INDEX IF NOT EXISTS knowledge_base_business_active_idx
-            ON knowledge_base (business_id, is_active);
+            CREATE INDEX IF NOT EXISTS knowledge_entries_business_active_idx
+            ON knowledge_entries (business_id, is_active);
 
-            CREATE INDEX IF NOT EXISTS knowledge_base_content_fts_idx
-            ON knowledge_base USING GIN (to_tsvector('english', content));
+            CREATE INDEX IF NOT EXISTS knowledge_entries_content_fts_idx
+            ON knowledge_entries USING GIN (to_tsvector('english', content));
 
-            CREATE INDEX IF NOT EXISTS idx_knowledge_base_source
-            ON knowledge_base(source_id);
+            CREATE INDEX IF NOT EXISTS idx_knowledge_entries_source
+            ON knowledge_entries(source_id);
 
-            CREATE INDEX IF NOT EXISTS idx_knowledge_base_business_source
-            ON knowledge_base(business_id, source_id)
+            CREATE INDEX IF NOT EXISTS idx_knowledge_entries_business_source
+            ON knowledge_entries(business_id, source_id)
             WHERE is_active = true;
 
-            COMMENT ON COLUMN knowledge_base.source_id IS 'Foreign key to knowledge_sources table. Entries auto-delete when source is deleted (CASCADE).';
+            COMMENT ON COLUMN knowledge_entries.source_id IS 'Foreign key to knowledge_sources table. Entries auto-delete when source is deleted (CASCADE).';
             """
             cursor.execute(create_kb_sql)
 
@@ -349,7 +349,7 @@ def embed_and_store_chunks_transactional(
         raise ValueError(f"business_id must be a valid UUID format, got: {business_id}")
 
     insert_sql = """
-        INSERT INTO knowledge_base (business_id, category, title, content, embedding, metadata, source_id)
+        INSERT INTO knowledge_entries (business_id, category, title, content, embedding, metadata, source_id)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
     """
 
@@ -371,7 +371,7 @@ def embed_and_store_chunks_transactional(
 
 def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, openai_api_key: str, business_id: str, category: str = "website", source_id: str = None, source_url: str = None) -> int:
     """
-    Generate embeddings and store chunks in knowledge_base table
+    Generate embeddings and store chunks in knowledge_entries table
     Now includes source tracking in metadata
     """
     import os
@@ -457,7 +457,7 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
         with psycopg.connect(database_url, autocommit=False) as conn:
             with conn.cursor() as cursor:
                 insert_sql = """
-                INSERT INTO knowledge_base (business_id, category, title, content, embedding, metadata, source_id)
+                INSERT INTO knowledge_entries (business_id, category, title, content, embedding, metadata, source_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """
                 # Use execute() in loop instead of executemany() to avoid prepared statements

@@ -18,14 +18,14 @@ def query_knowledge(
     match_count: int = 3
 ) -> Dict[str, Any]:
     """
-    Query knowledge_base table using vector similarity search
+    Query knowledge_entries table using vector similarity search
 
     Returns only the source documents - the agent will synthesize the answer.
 
     Args:
         question: The question to ask
         database_url: PostgreSQL connection string
-        table_name: Table name (always knowledge_base)
+        table_name: Table name (default: knowledge_entries)
         openai_api_key: OpenAI API key for generating question embedding
         business_id: Business UUID to filter results
         match_threshold: Minimum similarity threshold (0-1)
@@ -35,7 +35,7 @@ def query_knowledge(
         Dict containing sources array with content, similarity scores, and metadata
     """
     print(f"🔍 Querying: '{question}'")
-    print(f"📋 Table: knowledge_base")
+    print(f"📋 Table: {table_name}")
     print(f"🏢 Business ID: {business_id}")
     print(f"🎯 Threshold: {match_threshold}, Count: {match_count}")
 
@@ -56,9 +56,9 @@ def query_knowledge(
         print("🔎 Searching for similar documents...")
         with psycopg.connect(database_url, row_factory=dict_row) as conn:
             with conn.cursor() as cursor:
-                # Use pgvector's cosine similarity search on knowledge_base table
+                # Use pgvector's cosine similarity search on knowledge_entries table
                 # Filter by business_id and is_active for business-specific active results
-                query_sql = """
+                query_sql = f"""
                 SELECT
                     id,
                     category,
@@ -68,7 +68,7 @@ def query_knowledge(
                     created_at,
                     updated_at,
                     1 - (embedding <=> %s::vector) as similarity
-                FROM knowledge_base
+                FROM {table_name}
                 WHERE business_id = %s::uuid
                   AND is_active = true
                   AND 1 - (embedding <=> %s::vector) >= %s
