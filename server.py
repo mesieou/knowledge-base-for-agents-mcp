@@ -97,7 +97,7 @@ def load_documents_tool(
         }
 
 @mcp.tool
-def query_knowledge_tool(
+def search_knowledge_base(
     question: str,
     database_url: str,
     business_id: str,
