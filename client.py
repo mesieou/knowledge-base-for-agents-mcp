@@ -59,7 +59,7 @@ async def load_website_to_knowledge_base(
     category: str = "website",
     description: str = None,
     server_url: str = "http://45.151.154.42:8000/mcp",
-    max_tokens: int = 8191
+    max_tokens: int = 512  # Optimal for semantic search
 ):
     """Load a website into the knowledge_entries table with source tracking"""
     print(f"🚀 Loading website: {website_url}")

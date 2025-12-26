@@ -30,7 +30,7 @@ def load_documents(
     business_id: str,
     sources: Optional[List[str]] = None,
     table_name: str = "knowledge_entries",
-    max_tokens: int = 8191,
+    max_tokens: int = 512,  # Optimal for semantic search
     crawl_internal: bool = True,
     database_url: Optional[str] = None,
     category: str = "website",
@@ -270,12 +270,27 @@ def _generate_embeddings(chunks: List, openai_client, business_id: str, category
             global_idx = batch_start + idx + 1
             embedding = emb_data.embedding
 
-            # Extract title with fallback logic
+            # Extract title with BETTER fallback logic using document hierarchy
             title = "Untitled Document"
+
+            # Strategy 1: Use ALL headings to create hierarchical title
             if chunk.meta and chunk.meta.headings:
-                title = chunk.meta.headings[0]
+                # Use last 2 headings for context: "Services > Physiotherapy"
+                headings = chunk.meta.headings
+                if len(headings) > 1:
+                    title = " > ".join(headings[-2:])  # Parent > Child
+                else:
+                    title = headings[0]
+
+            # Strategy 2: Fallback to filename
             elif chunk.meta and chunk.meta.origin and chunk.meta.origin.filename:
                 title = chunk.meta.origin.filename
+
+            # Strategy 3: Use first words of content as title
+            elif chunk.text:
+                # Use first line or first 50 chars as title
+                first_line = chunk.text.split('\n')[0].strip()
+                title = first_line[:50] if first_line else "Untitled Document"
 
             # Truncate title to 255 characters max
             title = title[:255] if title else "Untitled Document"

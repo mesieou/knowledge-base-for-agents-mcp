@@ -28,7 +28,7 @@ def load_documents_tool(
     database_url: str,
     business_id: str,
     category: str = "website",
-    max_tokens: int = 8191,
+    max_tokens: int = 512,  # Optimal for semantic search
     crawl_internal: bool = True,
     description: str = None
 ) -> Dict[str, Any]:

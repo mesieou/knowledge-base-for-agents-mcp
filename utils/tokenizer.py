@@ -21,6 +21,10 @@ class OpenAITokenizerWrapper(PreTrainedTokenizerBase):
         self.tokenizer = get_encoding(model_name)
         self._vocab_size = self.tokenizer.max_token_value
 
+    def __len__(self) -> int:
+        """Return the vocabulary size."""
+        return self.vocab_size
+
     def tokenize(self, text: str, **kwargs) -> List[str]:
         """Main method used by HybridChunker."""
         return [str(t) for t in self.tokenizer.encode(text)]

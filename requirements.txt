@@ -9,7 +9,7 @@ pydantic
 starlette
 
 # Document Processing
-docling>=2.63.0  # Latest stable version as of Nov 2025
+docling>=2.66.0  # Latest version with proper HTML support
 tiktoken
 transformers
 
