@@ -30,7 +30,12 @@ def load_documents_tool(
     category: str = "website",
     max_tokens: int = 512,  # Optimal for semantic search
     crawl_internal: bool = True,
-    description: str = None
+    description: str = None,
+    mode: str = "sync",
+    import_key: Optional[str] = None,
+    return_preview_chunks: bool = False,
+    preview_max_chunks: int = 24,
+    max_pages: int = 50
 ) -> Dict[str, Any]:
     """Load and process documents into knowledge_entries with source tracking.
 
@@ -42,6 +47,11 @@ def load_documents_tool(
         max_tokens: Maximum tokens per chunk
         crawl_internal: Whether to crawl internal links
         description: Optional description for the sources
+        mode: sync waits for full ingestion; preview_then_background returns staged chunks early
+        import_key: Idempotency key for preview_then_background
+        return_preview_chunks: Return staged chunks for onboarding extraction
+        preview_max_chunks: Maximum staged chunks to return in the response
+        max_pages: Maximum pages to crawl
 
     Returns:
         Dict with comprehensive results including source tracking:
@@ -81,7 +91,12 @@ def load_documents_tool(
             crawl_internal=crawl_internal,
             database_url=database_url,
             category=category,
-            description=description
+            description=description,
+            mode=mode,
+            import_key=import_key,
+            return_preview_chunks=return_preview_chunks,
+            preview_max_chunks=preview_max_chunks,
+            max_pages=max_pages
         )
         logger.info(f"✅ Tool completed - {result['total_entries']} entries from {result['sources_successful']}/{result['sources_processed']} sources")
         return result

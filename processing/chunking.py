@@ -47,6 +47,16 @@ def chunk_documents(
         try:
             chunk_iter = chunker.chunk(dl_doc=document)
             chunks = list(chunk_iter)
+            source_url = getattr(document, "_source_url", None)
+            if source_url:
+                for chunk in chunks:
+                    try:
+                        object.__setattr__(chunk, "_source_url", source_url)
+                    except Exception:
+                        try:
+                            setattr(chunk, "_source_url", source_url)
+                        except Exception:
+                            logger.debug(f"Could not attach source URL to chunk: {source_url}")
 
             # Filter out chunks that are too small (likely navigation/buttons)
             filtered_chunks = [c for c in chunks if len(c.text.split()) >= min_chunk_words]

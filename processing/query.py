@@ -54,7 +54,7 @@ def query_knowledge(
 
         # Query database for similar documents
         print("🔎 Searching for similar documents...")
-        with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        with psycopg.connect(database_url, row_factory=dict_row, prepare_threshold=None) as conn:
             with conn.cursor() as cursor:
                 # Use pgvector's cosine similarity search on knowledge_entries table
                 # Filter by business_id and is_active for business-specific active results

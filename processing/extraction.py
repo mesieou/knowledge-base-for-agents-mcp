@@ -2,6 +2,7 @@
 Document extraction using docling with optimal HTML configuration
 """
 import logging
+import re
 import requests
 import time
 from bs4 import BeautifulSoup
@@ -23,7 +24,9 @@ SKIP_URL_PATTERNS = [
     '/book-an-appointment',
     '/book-',
     '/booking',
-    '/contact',
+    '/quick-quote',
+    '/quick_quote',
+    '/get-quote',
     '/privacy-policy',
     '/privacy',
     '/terms',
@@ -31,6 +34,10 @@ SKIP_URL_PATTERNS = [
     '/login',
     '/signup',
     '/register',
+    '/account',
+    '/my-account',
+    '/lost-password',
+    '/search',
     '/cart',
     '/checkout',
     '?',  # Skip URLs with query parameters
@@ -41,6 +48,11 @@ SKIP_URL_PATTERNS = [
 CONTENT_URL_PATTERNS = [
     '/about',
     '/services',
+    '/service',
+    '/pricing',
+    '/price',
+    '/fees',
+    '/contact',
     '/team',
     '/staff',
     '/blog',
@@ -53,6 +65,36 @@ CONTENT_URL_PATTERNS = [
     '/what-',
     '/how-',
 ]
+
+PRIORITY_PATH_PATTERNS = [
+    ('', 0),
+    ('/', 0),
+    ('/services', 1),
+    ('/service', 1),
+    ('/pricing', 3),
+    ('/prices', 3),
+    ('/fees', 3),
+    ('/about', 4),
+    ('/contact', 5),
+]
+
+SERVICE_SLUG_PATTERN = re.compile(
+    r"(service|repair|install|maintenance|inspection|assessment|consult|therapy|"
+    r"treatment|coaching|training|class|course|program|package|hire|rental|"
+    r"move|moving|mover|removal|relocation|delivery|cleaning|support|management)",
+    re.IGNORECASE,
+)
+
+
+def attach_source_url(document, source_url: str) -> None:
+    """Attach the original crawled URL so chunk persistence can trace each chunk."""
+    try:
+        object.__setattr__(document, "_source_url", source_url)
+    except Exception:
+        try:
+            setattr(document, "_source_url", source_url)
+        except Exception:
+            logger.debug(f"Could not attach source URL to document: {source_url}")
 
 
 def should_crawl_url(url: str, base_domain: str) -> bool:
@@ -89,6 +131,27 @@ def should_crawl_url(url: str, base_domain: str) -> bool:
             return False
 
     return True
+
+
+def prioritize_urls(urls: Set[str], base_url: str, max_urls: int) -> List[str]:
+    """Return URLs in an order useful for onboarding extraction."""
+    parsed_base = urlparse(base_url)
+    canonical_base = f"{parsed_base.scheme}://{parsed_base.netloc}{parsed_base.path}".rstrip('/')
+
+    def score(url: str) -> tuple:
+        parsed = urlparse(url)
+        path = (parsed.path or '/').rstrip('/').lower()
+        if url.rstrip('/') == canonical_base or path in ('', '/'):
+            return (0, 0, url)
+        for pattern, priority in PRIORITY_PATH_PATTERNS:
+            if pattern and pattern in path:
+                return (priority, len(path), url)
+        if SERVICE_SLUG_PATTERN.search(path):
+            return (2, len(path), url)
+        depth = len([part for part in path.split('/') if part])
+        return (10 + depth, len(path), url)
+
+    return sorted(urls, key=score)[:max_urls]
 
 
 def preprocess_html_minimal(html_content: str) -> str:
@@ -247,7 +310,8 @@ def find_internal_links(base_url: str, max_depth: int = 2, max_urls: int = 50) -
 def extract_documents(
     sources: List[str],
     crawl_internal: bool = True,
-    max_document_words: int = MAX_DOCUMENT_WORDS
+    max_document_words: int = MAX_DOCUMENT_WORDS,
+    max_pages: int = 50
 ) -> List:
     """
     Extract documents from various sources using docling with optimal configuration.
@@ -273,17 +337,18 @@ def extract_documents(
         for source in sources:
             if source.startswith('http'):
                 logger.info(f"🕷️  Crawling website: {source}")
-                internal_urls = find_internal_links(source)
+                internal_urls = find_internal_links(source, max_urls=max_pages)
                 all_sources.update(internal_urls)
                 logger.info(f"📈 Expanded from 1 to {len(internal_urls)} URLs")
 
-    logger.info(f"📄 Starting extraction of {len(all_sources)} total sources")
+    ordered_sources = prioritize_urls(all_sources, sources[0], max_pages)
+    logger.info(f"📄 Starting extraction of {len(ordered_sources)} total sources")
 
     last_request_time = 0  # Track for rate limiting
 
-    for i, source in enumerate(all_sources, 1):
+    for i, source in enumerate(ordered_sources, 1):
         try:
-            logger.info(f"📖 [{i}/{len(all_sources)}] Extracting: {source}")
+            logger.info(f"📖 [{i}/{len(ordered_sources)}] Extracting: {source}")
 
             # For HTML sources, preprocess to remove noise
             if source.startswith('http'):
@@ -342,6 +407,7 @@ def extract_documents(
                     )
                     continue
 
+                attach_source_url(result.document, source)
                 documents.append(result.document)
                 # Log some basic info about what was extracted
                 logger.info(
@@ -362,7 +428,7 @@ def extract_documents(
             logger.error(f"❌ Error extracting {source}: {e}")
             continue
 
-    logger.info(f"🎉 Extraction complete: {len(documents)} documents from {len(all_sources)} sources")
+    logger.info(f"🎉 Extraction complete: {len(documents)} documents from {len(ordered_sources)} sources")
     return documents
 
 

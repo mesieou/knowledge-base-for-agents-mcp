@@ -21,7 +21,7 @@ def create_embeddings_table(database_url: str, table_name: str = "knowledge_entr
     """
     table_name = "knowledge_entries"
 
-    with psycopg.connect(database_url, autocommit=False) as conn:
+    with psycopg.connect(database_url, autocommit=False, prepare_threshold=None) as conn:
         with conn.cursor() as cursor:
             # Enable pgvector extension
             try:
@@ -137,7 +137,7 @@ def create_or_update_source(
     if not source_type:
         source_type = infer_source_type(source_url)
 
-    with psycopg.connect(database_url, row_factory=dict_row, autocommit=False) as conn:
+    with psycopg.connect(database_url, row_factory=dict_row, autocommit=False, prepare_threshold=None) as conn:
         with conn.cursor() as cursor:
             # Try to find existing source
             cursor.execute(
@@ -200,7 +200,7 @@ def mark_source_loaded(
     """Mark source as successfully loaded or failed"""
     status = 'failed' if error_message else 'loaded'
 
-    with psycopg.connect(database_url, autocommit=False) as conn:
+    with psycopg.connect(database_url, autocommit=False, prepare_threshold=None) as conn:
         with conn.cursor() as cursor:
             # First verify the record exists
             cursor.execute(
@@ -454,7 +454,7 @@ def embed_and_store_chunks(chunks: List, database_url: str, table_name: str, ope
     # Insert chunks
     if chunk_data:
         # Use fresh connection to avoid prepared statement conflicts
-        with psycopg.connect(database_url, autocommit=False) as conn:
+        with psycopg.connect(database_url, autocommit=False, prepare_threshold=None) as conn:
             with conn.cursor() as cursor:
                 insert_sql = """
                 INSERT INTO knowledge_entries (business_id, category, title, content, embedding, metadata, source_id)
