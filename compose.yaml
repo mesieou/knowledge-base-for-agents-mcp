@@ -1,0 +1,11 @@
+services:
+  mcp-server:
+    image: ${MCP_IMAGE:?MCP_IMAGE must be set}
+    container_name: ${MCP_CONTAINER_NAME:-knowledge-base-mcp}
+    ports:
+      - "${MCP_BIND_HOST:-0.0.0.0}:${MCP_PUBLISHED_PORT:-8000}:8000"
+    env_file:
+      - ${MCP_ENV_FILE:-.env}
+    environment:
+      PORT: 8000
+    restart: unless-stopped

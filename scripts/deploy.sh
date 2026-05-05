@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ENV_FILE="${1:-${MCP_ENV_FILE:-.env}}"
+
+cd "${REPO_DIR}"
+
+if [[ ! -f "${ENV_FILE}" ]]; then
+  echo "Missing env file: ${ENV_FILE}" >&2
+  exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker is required" >&2
+  exit 1
+fi
+
+export MCP_ENV_FILE="${ENV_FILE}"
+
+docker compose --env-file "${ENV_FILE}" -f compose.yaml config >/dev/null
+
+if [[ "${MCP_SKIP_PULL:-0}" != "1" ]]; then
+  docker compose --env-file "${ENV_FILE}" -f compose.yaml pull
+fi
+
+docker compose --env-file "${ENV_FILE}" -f compose.yaml up -d --remove-orphans
+docker compose --env-file "${ENV_FILE}" -f compose.yaml ps

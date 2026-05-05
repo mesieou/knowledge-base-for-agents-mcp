@@ -1,137 +1,117 @@
 # Knowledge Base MCP Server
 
-Production-ready document extraction and vector storage using **docling + PostgreSQL**.
+Production MCP server for website/document extraction and vector-backed knowledge search using docling + PostgreSQL.
+
+## Runtime Contract
+
+- MCP route: `/mcp`
+- Tool names:
+  - `load_documents_tool`
+  - `search_knowledge_base`
+- Container port: `8000`
+- Required runtime env:
+  - `OPENAI_API_KEY`
+- Parity/legacy env preserved:
+  - `DATABASE_URL`
+  - `BUSINESS_ID`
+
+`DATABASE_URL` and `BUSINESS_ID` are still used by local scripts and parity restores, but the app path passes `database_url` and `business_id` to the MCP tool at call time.
 
 ## Features
 
-- **Smart Web Crawling**: Automatic internal link discovery with bot protection
-- **Document Support**: PDF, DOCX, HTML, and more via docling
-- **Table Extraction**: 100% data preservation with semantic format
-- **Optimal Chunking**: 512 tokens per chunk for semantic search
-- **Safety Features**: Rate limiting, size limits, retry logic
-- **Vector Search**: OpenAI embeddings with PostgreSQL pgvector
+- Smart website crawling with internal-link discovery
+- HTML, PDF, DOCX, and docling-supported document extraction
+- Semantic table extraction
+- 512-token chunking for retrieval
+- PostgreSQL + pgvector storage
+- MCP HTTP server via FastMCP/uvicorn
 
-## Quick Start
+## Local Development
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
-
-# Set environment variables
-export OPENAI_API_KEY="your-key-here"
-export DATABASE_URL="postgresql://user:pass@host:5432/db"
-
-# Run tests
+cp .env.example .env
 python test_extraction_chunking.py
-```
-
-## Usage
-
-```python
-from tools.loadDocuments import load_documents
-
-result = load_documents(
-    business_id="your-business-id",
-    sources=["https://yourwebsite.com"],
-    max_tokens=512,           # Optimal for semantic search
-    crawl_internal=True,      # Auto-discover pages
-    category="website"
-)
-```
-
-## Architecture
-
-**Extraction** (`processing/extraction.py`):
-- Smart URL filtering (skips booking/contact pages)
-- Rate limiting (1s between requests)
-- Document size limits (10K words max)
-- User-agent headers to avoid 403s
-
-**Chunking** (`processing/chunking.py`):
-- HybridChunker with 512 token max
-- OpenAI tokenizer (matches embedding model)
-- Filters out tiny chunks (<15 words)
-- Merge related content at same hierarchy
-
-**Storage** (`tools/loadDocuments.py`):
-- PostgreSQL with pgvector
-- Hierarchical titles ("Services > Physiotherapy")
-- Full metadata preservation
-
-## Safety Features
-
-✅ **Rate Limiting**: 1 second delay between requests
-✅ **Size Limits**: Skips documents >10K words
-✅ **Retry Logic**: Max 2 retries with exponential backoff
-✅ **Bot Detection**: Gracefully handles 403 Forbidden
-✅ **Timeouts**: 15 second timeout per request
-
-## Table Handling
-
-Tables are converted to semantic format for better RAG:
-
-**HTML Table** → **Semantic Format**
-```
-<table>                      John Smith, Role = Senior Physiotherapist
-  <tr>                  →    John Smith, Department = Sports Medicine
-    <td>John Smith</td>      John Smith, Years Experience = 12
-    <td>Physio</td>
-  </tr>
-</table>
-```
-
-✅ 100% data preservation
-✅ Self-contained chunks
-✅ LLM-friendly format
-✅ Natural language queryable
-
-## Test Results
-
-**10 Website Test** (60% success rate on challenging sites):
-- ✅ Python.org, Nike, BBC, GitHub, Stack Overflow, Melbourne Athletic
-- ❌ Wikipedia (too large - by design)
-- ❌ Medium (bot-protected - unavoidable)
-- ❌ Craigslist/HackerNews (no semantic content)
-
-**Melbourne Athletic Test**:
-- 21 pages crawled
-- 275 chunks created
-- 47.4 words/chunk average
-- 89% hierarchical titles
-
-## Environment Variables
-
-```bash
-# Required
-OPENAI_API_KEY=your_openai_api_key_here
-DATABASE_URL=postgresql://user:pass@host:5432/db
-
-# Optional
-MAX_DOCUMENT_WORDS=10000     # Skip larger documents
-MIN_DELAY_SECONDS=1.0        # Rate limiting
-REQUEST_TIMEOUT=15           # HTTP timeout
-```
-
-## Running Tests
-
-```bash
-# Test extraction + chunking (no DB)
-python test_extraction_chunking.py
-
-# Test 10 diverse websites
 python test_10_websites.py
+```
 
-# Test full pipeline with DB
+Run the server locally:
+
+```bash
+python server.py
+```
+
+## Portable Deployment
+
+This repo is intended to be portable across servers using:
+
+1. a pinned image tag
+2. one env file
+3. `docker compose up -d`
+
+Canonical deploy files:
+
+- `compose.yaml`
+- `.env.example`
+- `scripts/deploy.sh`
+
+Create `.env` from `.env.example` and set at minimum:
+
+```bash
+MCP_IMAGE=ghcr.io/mesieou/knowledge-base-for-agents-mcp:sha-REPLACE_ME
+OPENAI_API_KEY=...
+DATABASE_URL=...
+BUSINESS_ID=...
+```
+
+Deploy:
+
+```bash
+./scripts/deploy.sh .env
+```
+
+Canary deploy on loopback:
+
+```bash
+COMPOSE_PROJECT_NAME=knowledge-base-mcp-canary \
+MCP_CONTAINER_NAME=knowledge-base-mcp-canary \
+MCP_BIND_HOST=127.0.0.1 \
+MCP_PUBLISHED_PORT=8001 \
+./scripts/deploy.sh .env
+```
+
+If you are deploying a local image instead of a registry tag, skip the pull step:
+
+```bash
+MCP_SKIP_PULL=1 ./scripts/deploy.sh .env
+```
+
+## Image Publishing
+
+The GitHub Actions workflow now publishes portable GHCR images instead of deploying to a hardcoded host.
+
+Published tags:
+
+- `ghcr.io/<owner>/knowledge-base-for-agents-mcp:sha-<full-git-sha>`
+- `ghcr.io/<owner>/knowledge-base-for-agents-mcp:latest` on the default branch
+
+## Moving to Another Server
+
+To move this service to a new server:
+
+1. Install Docker + Docker Compose plugin
+2. Clone this repo
+3. Copy `.env`
+4. Set `MCP_IMAGE` to the desired pinned image tag
+5. Run `./scripts/deploy.sh .env`
+6. Point the app's `MCP_SERVER_URL` at the new host
+
+No local persistent data volume is required for the current production runtime.
+
+## Tests
+
+```bash
+python test_extraction_chunking.py
+python test_10_websites.py
 python test_load_documents.py
 ```
-
-## Production Ready
-
-✅ Commercial-grade web scraping
-✅ Handles bad HTML structure
-✅ JavaScript-heavy sites
-✅ Rate limiting & bot protection
-✅ Semantic table extraction
-✅ Optimal chunk sizes for RAG
-
-Ship it! 🚀

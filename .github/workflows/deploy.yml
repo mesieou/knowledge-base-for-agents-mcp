@@ -1,106 +1,43 @@
-name: Deploy to Kamatera
+name: Publish Image
 
 on:
   push:
-    branches: [ master ]
-  workflow_dispatch:  # Allows manual triggering
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment: kamatura
 
     steps:
-    - name: Setup SSH
-      run: |
-        mkdir -p ~/.ssh/
-        # Debug: Check if secrets are loaded
-        echo "Checking secrets..."
-        echo "SSH_PRIVATE_KEY length: ${#SSH_PRIVATE_KEY}"
-        echo "SSH_KNOWN_HOSTS length: ${#SSH_KNOWN_HOSTS}"
+      - name: Checkout
+        uses: actions/checkout@v4
 
-        if [ -z "$SSH_PRIVATE_KEY" ]; then
-          echo "❌ SSH_PRIVATE_KEY is empty!"
-          exit 1
-        fi
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-        if [ -z "$SSH_KNOWN_HOSTS" ]; then
-          echo "❌ SSH_KNOWN_HOSTS is empty!"
-          exit 1
-        fi
+      - name: Build metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/knowledge-base-for-agents-mcp
+          tags: |
+            type=raw,value=sha-${{ github.sha }}
+            type=raw,value=latest,enable={{is_default_branch}}
 
-        # Write SSH key with proper line endings
-        printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
-        chmod 600 ~/.ssh/deploy_key
-        # Write known hosts and get fresh ones
-        printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-        chmod 644 ~/.ssh/known_hosts
-        # Get current host keys to avoid host key verification issues
-        ssh-keyscan -H 45.151.154.42 >> ~/.ssh/known_hosts 2>/dev/null || true
-        # Verify key format
-        echo "Testing SSH key format..."
-        ssh-keygen -l -f ~/.ssh/deploy_key
-        # Start SSH agent and add key
-        eval "$(ssh-agent -s)"
-        ssh-add ~/.ssh/deploy_key
-        echo "SSH setup complete"
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-
-    - name: Deploy to Kamatera
-      run: |
-        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@45.151.154.42 << 'EOF'
-        set -e  # Exit on any error
-        echo "🚀 Starting deployment..."
-
-        # Stop existing container
-        echo "⏹️ Stopping existing containers..."
-        docker stop knowledge-base-mcp || true
-        docker rm knowledge-base-mcp || true
-
-        # Remove old images to save space
-        docker image prune -f || true
-
-        # Pull latest code (build directly on Kamatera)
-        echo "📥 Pulling latest code..."
-        if [ -d "/root/knowledge-base-for-agents-mcp" ]; then
-          cd /root/knowledge-base-for-agents-mcp
-          git pull origin master
-        else
-          git clone https://github.com/mesieou/knowledge-base-for-agents-mcp.git /root/knowledge-base-for-agents-mcp
-          cd /root/knowledge-base-for-agents-mcp
-        fi
-
-        # Build and run on Kamatera (no tar files needed)
-        echo "🔨 Building Docker image..."
-        docker build -t knowledge-base-mcp .
-
-        echo "🚀 Starting new container..."
-
-        # Create .env file with secrets
-        cat > .env << ENVEOF
-        DATABASE_URL=${{ secrets.DATABASE_URL }}
-        OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-        BUSINESS_ID=${{ secrets.BUSINESS_ID }}
-        ENVEOF
-
-        docker run -d -p 8000:8000 \
-          --env-file .env \
-          --name knowledge-base-mcp \
-          --restart unless-stopped \
-          knowledge-base-mcp:latest
-
-        echo "✅ Deployment completed successfully!"
-
-        # Verify the container is running
-        sleep 5
-        if docker ps | grep -q knowledge-base-mcp; then
-          echo "✅ Container is running"
-          docker logs --tail 10 knowledge-base-mcp
-        else
-          echo "❌ Container failed to start"
-          docker logs knowledge-base-mcp
-          exit 1
-        fi
-        EOF
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
