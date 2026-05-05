@@ -18,11 +18,18 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
+set -a
+. "${ENV_FILE}"
+set +a
+
 export MCP_ENV_FILE="${ENV_FILE}"
 
 docker compose --env-file "${ENV_FILE}" -f compose.yaml config >/dev/null
 
-if [[ "${MCP_SKIP_PULL:-0}" != "1" ]]; then
+if [[ "${MCP_BUILD_LOCAL:-0}" == "1" ]]; then
+  IMAGE_TAG="${MCP_IMAGE:-knowledge-base-mcp:local}"
+  docker build -t "${IMAGE_TAG}" .
+elif [[ "${MCP_SKIP_PULL:-0}" != "1" ]]; then
   docker compose --env-file "${ENV_FILE}" -f compose.yaml pull
 fi
 
