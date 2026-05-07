@@ -30,7 +30,7 @@ Production MCP server for website/document extraction and vector-backed knowledg
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env
+cp .env.runtime.example .env
 python test_extraction_chunking.py
 python test_10_websites.py
 ```
@@ -46,20 +46,28 @@ python server.py
 This repo is intended to be portable across servers using:
 
 1. a repo checkout
-2. one env file
-3. `docker compose up -d`
+2. one deploy env file
+3. one runtime env file
+4. `docker compose up -d`
 
 Canonical deploy files:
 
 - `compose.yaml`
 - `.env.example`
+- `.env.runtime.example`
 - `scripts/deploy.sh`
 
-Create `.env` from `.env.example` and set at minimum:
+Create `.env.deploy` from `.env.example` for deploy-time settings:
 
 ```bash
 MCP_IMAGE=knowledge-base-mcp:local
 MCP_BUILD_LOCAL=1
+MCP_RUNTIME_ENV_FILE=.env.runtime
+```
+
+Create `.env.runtime` from `.env.runtime.example` for container runtime settings:
+
+```bash
 OPENAI_API_KEY=...
 DATABASE_URL=...
 BUSINESS_ID=...
@@ -68,7 +76,7 @@ BUSINESS_ID=...
 Deploy:
 
 ```bash
-./scripts/deploy.sh .env
+./scripts/deploy.sh .env.deploy
 ```
 
 Canary deploy on loopback:
@@ -78,7 +86,7 @@ COMPOSE_PROJECT_NAME=knowledge-base-mcp-canary \
 MCP_CONTAINER_NAME=knowledge-base-mcp-canary \
 MCP_BIND_HOST=127.0.0.1 \
 MCP_PUBLISHED_PORT=8001 \
-./scripts/deploy.sh .env
+./scripts/deploy.sh .env.deploy
 ```
 
 If you want to deploy from a registry image instead of building locally, set:
@@ -103,10 +111,11 @@ To move this service to a new server:
 
 1. Install Docker + Docker Compose plugin
 2. Clone this repo
-3. Copy `.env`
-4. Set `MCP_IMAGE` and `MCP_BUILD_LOCAL=1`
-5. Run `./scripts/deploy.sh .env`
-6. Point the app's `MCP_SERVER_URL` at the new host
+3. Copy `.env.deploy`
+4. Copy `.env.runtime`
+5. Set `MCP_IMAGE` and `MCP_BUILD_LOCAL=1`
+6. Run `./scripts/deploy.sh .env.deploy`
+7. Point the app's `MCP_SERVER_URL` at the new host
 
 No local persistent data volume is required for the current production runtime.
 

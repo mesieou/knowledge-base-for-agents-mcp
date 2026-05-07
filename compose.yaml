@@ -5,7 +5,7 @@ services:
     ports:
       - "${MCP_BIND_HOST:-0.0.0.0}:${MCP_PUBLISHED_PORT:-8000}:8000"
     env_file:
-      - ${MCP_ENV_FILE:-.env}
+      - ${MCP_RUNTIME_ENV_FILE:-.env.runtime}
     environment:
       PORT: 8000
     restart: unless-stopped
